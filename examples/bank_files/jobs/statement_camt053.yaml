@@ -1,0 +1,17 @@
+# ISO 20022 camt.053: one row per entry (Ntry). level: transaction gives one row per TxDtls.
+name: statement_camt053
+description: camt.053 entries, balances and the entry summary checked
+source:
+  connection: inbox
+  files: "bank/statement_camt053.xml"
+  format: camt053
+  options: {level: entry, checks: error}
+transform:
+  - derive:
+      line_id: "'CAMT053-' || statement_id || '-' || entry_reference"
+target:
+  connection: warehouse
+  table: camt_entries
+  mode: upsert
+  key: [line_id]
+  create: true

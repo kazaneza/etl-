@@ -1,0 +1,15 @@
+name: hub_accounts
+description: Accounts for std_accounts
+source:
+  connection: core
+  table: public.accounts
+  columns: [customer_number, account_number, product_code, currency, open_date, close_date]
+transform:
+  - cast: {customer_number: VARCHAR, account_number: VARCHAR, open_date: DATE, close_date: DATE}
+target:
+  connection: hub
+  table: accts
+  format: parquet
+  mode: replace
+schedule: "10 1 * * *"
+notify: failure

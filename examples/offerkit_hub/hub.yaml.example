@@ -1,0 +1,38 @@
+# The part of offerkit's hub.yaml that reads what etl+ wrote. Paths are relative to the hub folder.
+sources:
+- name: core
+  kind: parquet
+  path: ../etlplus-project/hub      # the folder target's path
+tables:
+  std_customers:
+    source: core
+    table: clients                  # hub/clients.parquet
+    columns:
+      customer_number: customer_number
+      birth_date: birth_date
+      customer_since: customer_since
+      customer_type: customer_type
+      segment: segment
+      branch: branch
+      district: district
+  std_accounts:
+    source: core
+    table: accts                    # hub/accts.parquet
+    columns:
+      customer_number: customer_number
+      account_number: account_number
+      product_code: product_code
+      currency: currency
+      open_date: open_date
+      close_date: close_date
+  std_daily_txn:
+    source: core
+    table: daily_txn                # hub/daily_txn.parquet
+    columns:
+      customer_number: customer_number
+      booking_date: booking_date
+      txn_code: txn_code
+      dir: dir
+      n_txn: n_txn
+      amount: amount
+      max_abs: max_abs

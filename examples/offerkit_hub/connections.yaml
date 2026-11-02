@@ -1,0 +1,13 @@
+connections:
+  core:
+    kind: postgres
+    host: core-standby.example.local
+    port: 5432
+    database: core
+    user: etl_reader
+    password_env: CORE_PASSWORD
+    role: source
+  hub:
+    kind: folder
+    path: ./hub          # the folder offerkit's hub.yaml names as a parquet source
+    role: target

@@ -1,0 +1,16 @@
+name: hub_clients
+description: One row per customer for std_customers; ids and attributes only, no names
+source:
+  connection: core
+  table: public.customers
+  columns: [customer_number, birth_date, opened_on, customer_type, segment, branch_code, district]
+transform:
+  - rename: {opened_on: customer_since, branch_code: branch}
+  - cast: {customer_number: VARCHAR, birth_date: DATE, customer_since: DATE}
+target:
+  connection: hub
+  table: clients
+  format: parquet
+  mode: replace
+schedule: "0 1 * * *"
+notify: failure

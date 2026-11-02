@@ -1,0 +1,23 @@
+layout: 1
+name: statement_fixed_example
+label: Statement lines, fixed width (example)
+template: true
+verify: >-
+  Example layout. It shows signed amounts: a leading sign on the amount and a separate C/D
+  column for the fee. Check every position against your own file.
+encoding: latin-1
+line_length: 90
+trim: right
+blank_as_null: true
+records:
+  - type: line
+    output: true
+    fields:
+      - {name: booking_date, start: 1, length: 8, type: date, format: "%Y%m%d"}
+      - {name: value_date, start: 9, length: 8, type: date, format: "%Y%m%d"}
+      - {name: account, start: 17, length: 16, type: string, personal: true}
+      - {name: amount, start: 33, length: 16, type: decimal, scale: 2, implied_decimal: true, sign: leading}
+      - {name: fee, start: 49, length: 10, type: decimal, scale: 2, implied_decimal: true, sign: "separate:fee_sign"}
+      - {name: fee_sign, start: 59, length: 1, type: string}
+      - {name: currency, start: 60, length: 3, type: string}
+      - {name: description, start: 63, length: 28, type: string}

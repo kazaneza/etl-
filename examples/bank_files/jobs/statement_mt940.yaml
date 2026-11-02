@@ -1,0 +1,18 @@
+# SWIFT MT940 statements: one row per :61: line. A statement that does not balance
+# (opening + lines != closing) stops the run before anything is published.
+name: statement_mt940
+description: MT940 statement lines, upserted on file, message and line
+source:
+  connection: inbox
+  files: "bank/statement_mt940.txt"
+  format: mt940
+  options: {checks: error}
+transform:
+  - derive:
+      line_id: "'MT940-' || transaction_reference || '-' || CAST(line_number AS VARCHAR)"
+target:
+  connection: warehouse
+  table: statement_lines
+  mode: upsert
+  key: [line_id]
+  create: true

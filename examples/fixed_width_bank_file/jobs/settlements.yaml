@@ -1,0 +1,36 @@
+# A partner's daily settlement file: fixed width, no header, one file per day
+# (SETTLE_20261101.txt). Amounts arrive in minor units, signs in their own column.
+#
+#  columns   width  example
+#  record    2      D1
+#  value_dt  8      20261101
+#  ref       16     REF0000000000001
+#  account   12     A00000000123
+#  sign      1      C
+#  amount    15     000000001250000
+#  ccy       3      LCY
+name: settlements
+description: Partner settlement files, fixed width, merged on the reference
+source:
+  connection: inbox
+  files: "SETTLE_*.txt"
+  format: fixed
+  options:
+    widths: [2, 8, 16, 12, 1, 15, 3]
+    names: [record, value_dt, ref, account, sign, amount_minor, ccy]
+    encoding: latin-1
+transform:
+  - filter: "record = 'D1'"                     # detail rows only, no header or trailer records
+  - derive:
+      value_date: "strptime(value_dt, '%Y%m%d')::DATE"
+      amount: "CAST(amount_minor AS DECIMAL(18,0)) / 100 * CASE WHEN sign = 'D' THEN -1 ELSE 1 END"
+  - drop: [record, value_dt, amount_minor, sign]
+  - dedupe: {key: [ref], order_by: "value_date DESC"}
+target:
+  connection: warehouse
+  table: settlements
+  mode: upsert
+  key: [ref]
+  create: true
+schedule: "0 7 * * 1-5"
+notify: always

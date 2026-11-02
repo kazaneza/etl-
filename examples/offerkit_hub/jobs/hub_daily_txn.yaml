@@ -1,0 +1,25 @@
+# Aggregated in the source: one row per customer x day x code x direction.
+# The last 400 days are re-read each night and the file replaced, so late postings land.
+name: hub_daily_txn
+description: Daily transaction aggregates for std_daily_txn
+source:
+  connection: core
+  query: >-
+    SELECT CAST(customer_number AS TEXT) AS customer_number, booking_date, txn_code,
+           CASE WHEN amount >= 0 THEN 'C' ELSE 'D' END AS dir,
+           count(*) AS n_txn, sum(abs(amount)) AS amount, max(abs(amount)) AS max_abs
+    FROM public.transactions
+    GROUP BY 1, 2, 3, 4
+  incremental:
+    column: booking_date
+    lookback_days: 400
+  chunk_rows: 250000
+transform:
+  - cast: {booking_date: DATE, n_txn: INTEGER, amount: DOUBLE, max_abs: DOUBLE}
+target:
+  connection: hub
+  table: daily_txn
+  format: parquet
+  mode: replace
+schedule: "30 1 * * *"
+notify: always

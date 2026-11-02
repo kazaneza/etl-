@@ -1,0 +1,29 @@
+# The last day, re-read every night. The window is half-open on the raw column
+# (created_date >= from AND created_date < to) so the source index is used; the same
+# slice is deleted on SQL Server before the insert, in one transaction, so a re-run
+# replaces the slice and late rows are picked up instead of duplicated.
+#
+# Backfill a range by hand:  etlplus run login_events --from 2026-08-01 --to 2026-08-05
+name: login_events
+description: Login events, last day appended with the slice replaced
+source:
+  connection: core
+  table: public.login_events
+  columns: "*"
+  incremental:
+    column: created_date          # must be indexed on the source
+    lookback_days: 1
+  chunk_rows: 200000
+target:
+  connection: reporting
+  table: dbo.login_events
+  mode: append
+  slice_column: created_date
+  create: true
+  # Optional, like the original load.sql: write the staged CSV to a share SQL Server
+  # can read and use BULK INSERT instead of fast_executemany.
+  # bulk:
+  #   local_dir: /mnt/sqlshare/etl          # where etl+ writes the file
+  #   remote_dir: '\fileserver\sqlshare\etl'  # the same folder as SQL Server sees it
+schedule: "15 2 * * *"
+notify: failure

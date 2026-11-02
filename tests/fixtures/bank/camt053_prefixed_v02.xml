@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<c:Document xmlns:c="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <c:BkToCstmrStmt>
+    <c:GrpHdr><c:MsgId>DEMOPFX01</c:MsgId><c:CreDtTm>2026-11-01T06:00:00</c:CreDtTm></c:GrpHdr>
+    <c:Stmt>
+      <c:Id>DEMOPFXSTMT</c:Id>
+      <c:Acct><c:Id><c:Othr><c:Id>DEMO000000009</c:Id></c:Othr></c:Id><c:Ccy>XTS</c:Ccy></c:Acct>
+      <c:Bal><c:Tp><c:CdOrPrtry><c:Cd>PRCD</c:Cd></c:CdOrPrtry></c:Tp><c:Amt Ccy="XTS">5.00</c:Amt><c:CdtDbtInd>DBIT</c:CdtDbtInd><c:Dt><c:Dt>2026-10-31</c:Dt></c:Dt></c:Bal>
+      <c:Bal><c:Tp><c:CdOrPrtry><c:Cd>CLBD</c:Cd></c:CdOrPrtry></c:Tp><c:Amt Ccy="XTS">15.00</c:Amt><c:CdtDbtInd>CRDT</c:CdtDbtInd><c:Dt><c:Dt>2026-10-31</c:Dt></c:Dt></c:Bal>
+      <c:TxsSummry><c:TtlNtries><c:NbOfNtries>2</c:NbOfNtries><c:Sum>30.00</c:Sum></c:TtlNtries></c:TxsSummry>
+      <c:Ntry>
+        <c:Amt Ccy="XTS">25.00</c:Amt><c:CdtDbtInd>CRDT</c:CdtDbtInd><c:Sts>BOOK</c:Sts>
+        <c:BookgDt><c:DtTm>2026-10-31T10:00:00</c:DtTm></c:BookgDt><c:ValDt><c:Dt>2026-10-31</c:Dt></c:ValDt>
+        <c:NtryDtls><c:TxDtls><c:RltdPties><c:Dbtr><c:Nm>Demo Customer 0007</c:Nm></c:Dbtr></c:RltdPties>
+        <c:RmtInf><c:Ustrd>Demo</c:Ustrd><c:Ustrd>transfer 0001</c:Ustrd></c:RmtInf></c:TxDtls></c:NtryDtls>
+      </c:Ntry>
+      <c:Ntry>
+        <c:Amt Ccy="XTS">5.00</c:Amt><c:CdtDbtInd>DBIT</c:CdtDbtInd><c:RvslInd>true</c:RvslInd><c:Sts>BOOK</c:Sts>
+        <c:BookgDt><c:Dt>2026-10-31</c:Dt></c:BookgDt>
+      </c:Ntry>
+    </c:Stmt>
+  </c:BkToCstmrStmt>
+</c:Document>

@@ -1,0 +1,9 @@
+name: Bank files
+stage: stage
+logs: logs
+keep_runs: 30
+timezone: UTC
+notify:
+  on: failure
+  webhook: null
+  email: null

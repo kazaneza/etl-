@@ -1,0 +1,55 @@
+layout: 1
+name: card_processor_ni_style
+label: Card processor daily file (NI-style)
+template: true
+verify: >-
+  Example layout. Network International and other processors publish their own layouts;
+  this template shows the shape only. Check every position against your processor's
+  specification.
+encoding: latin-1
+line_length: 200
+trim: right
+blank_as_null: true
+record_type: {start: 1, length: 2}
+records:
+  - type: header
+    match: "FH"
+    occurs: first
+    fields:
+      - {name: processor_id, start: 3, length: 9, type: string}
+      - {name: institution_id, start: 12, length: 8, type: string}
+      - {name: file_date, start: 20, length: 8, type: date, format: "%Y%m%d"}
+      - {name: file_sequence, start: 28, length: 6, type: integer}
+  - type: detail
+    match: ["TD"]
+    occurs: many
+    output: true
+    fields:
+      - {name: card_number, start: 3, length: 19, type: string, mask: pan, personal: true}
+      - {name: transaction_type, start: 22, length: 2, type: string}
+      - {name: transaction_date, start: 24, length: 8, type: date, format: "%Y%m%d"}
+      - {name: transaction_time, start: 32, length: 6, type: time, format: "%H%M%S"}
+      - {name: terminal_id, start: 38, length: 8, type: string}
+      - {name: merchant_id, start: 46, length: 15, type: string}
+      - {name: merchant_name, start: 61, length: 25, type: string}
+      - {name: mcc, start: 86, length: 4, type: string}
+      - {name: amount, start: 90, length: 13, type: decimal, scale: 2, implied_decimal: true, sign: trailing}
+      - {name: currency, start: 103, length: 3, type: string}
+      - {name: settlement_amount, start: 106, length: 13, type: decimal, scale: 2, implied_decimal: true, sign: trailing}
+      - {name: settlement_currency, start: 119, length: 3, type: string}
+      - {name: settlement_date, start: 122, length: 8, type: date, format: "%Y%m%d"}
+      - {name: fee, start: 130, length: 9, type: decimal, scale: 2, implied_decimal: true, sign: none}
+      - {name: auth_code, start: 139, length: 6, type: string}
+      - {name: response_code, start: 145, length: 2, type: string}
+      - {name: arn, start: 147, length: 23, type: string}
+  - type: trailer
+    match: "FT"
+    occurs: last
+    fields:
+      - {name: record_count, start: 3, length: 9, type: integer}
+      - {name: total_amount, start: 12, length: 16, type: decimal, scale: 2, implied_decimal: true, sign: trailing}
+carry: [header.file_date, header.file_sequence]
+checks:
+  - {kind: count, field: trailer.record_count, of: detail}
+  - {kind: sum, field: trailer.total_amount, of: detail.amount}
+  - {kind: unknown_records, level: error}

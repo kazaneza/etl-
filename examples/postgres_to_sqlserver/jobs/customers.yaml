@@ -1,0 +1,16 @@
+# Whole table, every night. Loaded into a temp table and swapped in, so readers
+# never see a half-empty table and a failed load leaves yesterday's rows in place.
+name: customers
+description: Customers from the core standby, replaced every night
+source:
+  connection: core
+  table: public.customers
+  columns: [customer_number, segment, branch_code, opened_on, updated_at]
+  chunk_rows: 100000
+target:
+  connection: reporting
+  table: dbo.customers
+  mode: replace
+  create: true
+schedule: "0 2 * * *"
+notify: failure

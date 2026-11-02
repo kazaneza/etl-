@@ -1,0 +1,24 @@
+connections:
+  core:
+    kind: postgres
+    host: core-standby.example.local
+    port: 5432
+    database: core
+    user: etl_reader            # a read-only role; etl+ also guards every query
+    password_env: CORE_PASSWORD # or set it in the console; never written here
+    options:
+      sslmode: prefer
+      application_name: etlplus
+    role: source
+  reporting:
+    kind: sqlserver
+    host: reporting-sql.example.local
+    port: 1433
+    database: reporting
+    user: etl_loader
+    password_env: REPORTING_PASSWORD
+    options:
+      driver: ODBC Driver 18 for SQL Server
+      encrypt: "yes"
+      trust_server_certificate: "yes"
+    role: target

@@ -1,0 +1,13 @@
+# BAI2 cash report: one row per 16 detail record; totals and counts at 49, 98 and 99 checked.
+name: cash_report_bai2
+description: BAI2 detail records
+source:
+  connection: inbox
+  files: "bank/cash_report.bai"
+  format: bai2
+  options: {implied_decimals: 2, checks: warn}
+target:
+  connection: warehouse
+  table: cash_report
+  mode: append
+  create: true

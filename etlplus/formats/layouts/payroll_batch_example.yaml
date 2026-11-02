@@ -1,0 +1,37 @@
+layout: 1
+name: payroll_batch_example
+label: Payroll batch (example)
+template: true
+verify: >-
+  Example layout. Check every position against the payroll file specification you receive.
+encoding: latin-1
+line_length: 80
+trim: right
+blank_as_null: true
+record_type: {start: 1, length: 1}
+records:
+  - type: header
+    match: "H"
+    occurs: first
+    fields:
+      - {name: company_code, start: 2, length: 10, type: string}
+      - {name: batch_date, start: 12, length: 8, type: date, format: "%Y%m%d"}
+  - type: detail
+    match: "D"
+    output: true
+    fields:
+      - {name: employee_id, start: 2, length: 10, type: string}
+      - {name: account, start: 12, length: 20, type: string, personal: true}
+      - {name: amount, start: 32, length: 12, type: decimal, scale: 2, implied_decimal: true}
+      - {name: reference, start: 44, length: 30, type: string}
+  - type: trailer
+    match: "T"
+    occurs: last
+    fields:
+      - {name: record_count, start: 2, length: 9, type: integer}
+      - {name: total_amount, start: 11, length: 15, type: decimal, scale: 2, implied_decimal: true}
+carry: [header.company_code, header.batch_date]
+checks:
+  - {kind: count, field: trailer.record_count, of: detail}
+  - {kind: sum, field: trailer.total_amount, of: detail.amount}
+  - {kind: unknown_records, level: error}

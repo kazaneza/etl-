@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "etlplus"
+version = "0.3.0"
+description = "etl+: pick a source, load a destination, map the columns. A file left behind at every step."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Crested Crane Intelligence" }]
+dependencies = [
+    "duckdb>=1.1",
+    "pyarrow>=16",
+    "pyyaml>=6",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "apscheduler>=3.10,<4",
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+sqlserver = ["pyodbc>=5"]
+mysql = ["pymysql>=1.1"]
+oracle = ["oracledb>=2"]
+db2 = ["ibm_db>=3.2"]
+clickhouse = ["clickhouse-connect>=0.7"]
+snowflake = ["snowflake-connector-python>=3.6"]
+hana = ["hdbcli>=2.19"]
+teradata = ["teradatasql>=20"]
+firebird = ["firebird-driver>=1.10"]
+odbc = ["pyodbc>=5"]
+mongodb = ["pymongo>=4.6"]
+sftp = ["paramiko>=3.4"]
+s3 = ["boto3>=1.34"]
+azure = ["azure-storage-blob>=12.19"]
+excel = ["openpyxl>=3.1"]
+common = [
+    "psycopg[binary]>=3.1", "pyodbc>=5", "pymysql>=1.1", "oracledb>=2", "clickhouse-connect>=0.7",
+    "pymongo>=4.6", "paramiko>=3.4", "boto3>=1.34", "azure-storage-blob>=12.19", "openpyxl>=3.1",
+]
+all = [
+    "psycopg[binary]>=3.1", "pyodbc>=5", "pymysql>=1.1", "oracledb>=2", "ibm_db>=3.2",
+    "clickhouse-connect>=0.7", "snowflake-connector-python>=3.6", "hdbcli>=2.19", "teradatasql>=20",
+    "firebird-driver>=1.10", "pymongo>=4.6", "paramiko>=3.4", "boto3>=1.34", "azure-storage-blob>=12.19",
+    "openpyxl>=3.1",
+]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+etlplus = "etlplus.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["etlplus*"]
+
+[tool.setuptools.package-data]
+# every console file (html, css, js, fonts, icons, png): the console works with no internet
+etlplus = ["console/*", "console/**/*"]
+"etlplus.formats" = ["layouts/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "realdb: needs the testdb compose profile (ETLPLUS_TESTDB=1)",
+    "slow: large-file memory checks, integrator only",
+]
+addopts = "-m \"not realdb and not slow\""

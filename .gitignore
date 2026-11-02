@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# etl+ project data: never commit secrets, staged files, runs or logs
+secrets.json
+secrets.json.enc
+.secret.key
+*.key
+.env
+connections.env
+stage/
+logs/
+runs.sqlite
+*.partial
+
+# generated demo and local projects
+demo/
+project/
+*.duckdb
+*.duckdb.wal
+*.db
+
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.screens/
+
+# internal: review screenshots, specs, local tooling
+.review/
+SPEC*.md
+.claude/
+.env.*
+!.env.example
+*.log
+*.tar

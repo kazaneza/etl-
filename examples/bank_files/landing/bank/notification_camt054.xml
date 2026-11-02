@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.02">
+<BkToCstmrDbtCdtNtfctn>
+<GrpHdr><MsgId>DEMOMSG20261101054</MsgId><CreDtTm>2026-11-01T06:00:00+00:00</CreDtTm></GrpHdr>
+<Ntfctn><Id>DEMOSTMT20261031</Id><ElctrncSeqNb>920</ElctrncSeqNb><CreDtTm>2026-11-01T06:00:00+00:00</CreDtTm>
+<Acct><Id><IBAN>ZZ00DEMO0000000001</IBAN></Id><Ccy>USD</Ccy><Svcr><FinInstnId><BIC>TESTZZ33XXX</BIC></FinInstnId></Svcr></Acct>
+
+<TxsSummry><TtlNtries><NbOfNtries>2</NbOfNtries><Sum>5162.71</Sum><TtlNetNtry><Amt>257.15</Amt><CdtDbtInd>CRDT</CdtDbtInd></TtlNetNtry></TtlNtries></TxsSummry>
+<Ntry><NtryRef>0001</NtryRef><Amt Ccy="USD">2709.93</Amt><CdtDbtInd>CRDT</CdtDbtInd><RvslInd>false</RvslInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-31</Dt></BookgDt><ValDt><Dt>2026-10-31</Dt></ValDt><AcctSvcrRef>SVC000001</AcctSvcrRef><BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>DMCT</SubFmlyCd></Fmly></Domn><Prtry><Cd>DEMO01</Cd><Issr>DEMO</Issr></Prtry></BkTxCd><NtryDtls><TxDtls><Refs><EndToEndId>E2E00010</EndToEndId></Refs><Amt Ccy="USD">2709.93</Amt><RltdPties><Dbtr><Nm>Demo Customer 0001</Nm></Dbtr><DbtrAcct><Id><Othr><Id>DEMO000000201</Id></Othr></Id></DbtrAcct></RltdPties><RltdAgts><DbtrAgt><FinInstnId><BIC>TESTZZ33XXX</BIC></FinInstnId></DbtrAgt></RltdAgts><RmtInf><Ustrd>Demo transfer 0001</Ustrd><Ustrd>part 1</Ustrd></RmtInf></TxDtls></NtryDtls><AddtlNtryInf>Demo entry 0001</AddtlNtryInf></Ntry>
+<Ntry><NtryRef>0002</NtryRef><Amt Ccy="USD">2452.78</Amt><CdtDbtInd>DBIT</CdtDbtInd><RvslInd>false</RvslInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-31</Dt></BookgDt><ValDt><Dt>2026-10-31</Dt></ValDt><AcctSvcrRef>SVC000002</AcctSvcrRef><BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>ICDT</Cd><SubFmlyCd>AUTT</SubFmlyCd></Fmly></Domn><Prtry><Cd>DEMO02</Cd><Issr>DEMO</Issr></Prtry></BkTxCd><NtryDtls><TxDtls><Refs><EndToEndId>E2E00020</EndToEndId></Refs><Amt Ccy="USD">2452.78</Amt><RltdPties><Cdtr><Nm>Demo Customer 0002</Nm></Cdtr><CdtrAcct><Id><Othr><Id>DEMO000000202</Id></Othr></Id></CdtrAcct></RltdPties><RltdAgts><CdtrAgt><FinInstnId><BIC>TESTZZ33XXX</BIC></FinInstnId></CdtrAgt></RltdAgts><RmtInf><Ustrd>Demo transfer 0002</Ustrd><Ustrd>part 1</Ustrd></RmtInf></TxDtls></NtryDtls><AddtlNtryInf>Demo entry 0002</AddtlNtryInf></Ntry>
+</Ntfctn>
+</BkToCstmrDbtCdtNtfctn>
+</Document>

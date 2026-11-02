@@ -1,0 +1,9 @@
+name: offerkit hub feed
+stage: stage
+logs: logs
+keep_runs: 7
+timezone: UTC
+notify:
+  on: failure
+  webhook: null
+  email: null

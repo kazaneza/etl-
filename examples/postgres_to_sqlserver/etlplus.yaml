@@ -1,0 +1,9 @@
+name: Core to reporting
+stage: stage
+logs: logs
+keep_runs: 14
+timezone: UTC
+notify:
+  on: failure              # never | failure | always
+  webhook: null            # e.g. https://chat.example.local/hooks/etl
+  email: null              # set in the console (Settings); the SMTP password is write-only

@@ -1,0 +1,64 @@
+services:
+  etlplus:
+    build: .
+    image: crestedcrane/etlplus:0.3.0
+    container_name: etlplus
+    # Published on the host's localhost only. The console has no login unless
+    # ETLPLUS_TOKEN is set; reach it from elsewhere with
+    #   ssh -L 8300:127.0.0.1:8300 <docker-host>
+    ports:
+      - "127.0.0.1:8300:8300"
+    environment:
+      ETLPLUS_PROJECT: /project
+      # Set a long random token to require "Authorization: Bearer <token>" on every /api call.
+      # Put it in a .env file next to this one (never commit it):  ETLPLUS_TOKEN=...
+      ETLPLUS_TOKEN: ${ETLPLUS_TOKEN:-}
+      # Key for the encrypted secrets store. If empty, a key file is created in each project folder.
+      ETLPLUS_SECRET_KEY: ${ETLPLUS_SECRET_KEY:-}
+      TZ: ${TZ:-UTC}
+      # ask: the console offers "Start with demo data" or "Connect my own data".
+      # demo or empty: that choice is made on the first start.
+      ETLPLUS_START: ${ETLPLUS_START:-ask}
+      # Shared folders this server may read (absolute paths, separated by ':'). Empty: any.
+      ETLPLUS_SHARE_ROOTS: ${ETLPLUS_SHARE_ROOTS:-}
+    volumes:
+      # The home: projects.yaml, demo/ and real/ (each a project with its own stage, runs and
+      # secrets). A 0.1.0 project volume is served as it is.
+      - etlplus-project:/project
+      # Your own folder instead: replace the line above with  - ./project:/project
+    restart: unless-stopped
+
+  # Real-server tests (integrator only). Not started by a plain "up". ETLPLUS_TESTDB_PASSWORD must
+  # be set: with it empty both images refuse to start (it is not ":?" here, because compose would
+  # then refuse every command, a plain "up" included).
+  #   docker compose --profile testdb up -d testdb-pg testdb-mariadb
+  #   (host ports: ETLPLUS_TESTDB_PG_PORT, ETLPLUS_TESTDB_MARIADB_PORT; default 55432, 53306)
+  #   ETLPLUS_TESTDB=1 pytest -m realdb
+  #   docker compose --profile testdb down -v
+  testdb-pg:
+    image: postgres:16
+    profiles: ["testdb"]
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: etl
+      POSTGRES_PASSWORD: "${ETLPLUS_TESTDB_PASSWORD:-}"
+      POSTGRES_DB: etltest
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=20"]
+    ports: ["127.0.0.1:${ETLPLUS_TESTDB_PG_PORT:-55432}:5432"]
+    tmpfs: ["/var/lib/postgresql/data"]
+
+  testdb-mariadb:
+    image: mariadb:11
+    profiles: ["testdb"]
+    mem_limit: 256m
+    environment:
+      MARIADB_USER: etl
+      MARIADB_PASSWORD: "${ETLPLUS_TESTDB_PASSWORD:-}"
+      MARIADB_ROOT_PASSWORD: "${ETLPLUS_TESTDB_PASSWORD:-}"
+      MARIADB_DATABASE: etltest
+    command: ["--innodb-buffer-pool-size=32M", "--performance-schema=OFF", "--max-connections=20"]
+    ports: ["127.0.0.1:${ETLPLUS_TESTDB_MARIADB_PORT:-53306}:3306"]
+    tmpfs: ["/var/lib/mysql"]
+
+volumes:
+  etlplus-project:

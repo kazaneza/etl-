@@ -1,0 +1,9 @@
+connections:
+  inbox:
+    kind: folder
+    path: ./landing
+    role: source
+  warehouse:
+    kind: duckdb
+    path: ./warehouse.duckdb
+    role: target

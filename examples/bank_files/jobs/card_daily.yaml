@@ -1,0 +1,17 @@
+# A card processor's daily file, read with the built-in NI-style template. Network
+# International and other processors publish their own layouts; this template shows the
+# shape only. Check every position against your processor's specification (copy the
+# template into this project's layouts/ folder and edit it there).
+name: card_daily
+description: Card transactions with the trailer count and sum checked
+source:
+  connection: inbox
+  files: "bank/card_daily_ni_style.txt"
+  format: layout
+  options: {layout: card_processor_ni_style, checks: error}
+target:
+  connection: warehouse
+  table: card_transactions
+  mode: upsert
+  key: [arn]
+  create: true
