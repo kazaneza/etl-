@@ -1,7 +1,7 @@
 // Jobs: the paginated list, the job detail (animated diagram, last runs) and the builder
 // wizard (Source, Transform, Destination, Mapping, Schedule and save).
 import {
-  h, put, icon, api, apiPage, enc, fmt, head, panel, empty, toast, pager, pageState, sect, drawer, dialog, confirmBox,
+  h, put, icon, pill, api, apiPage, enc, fmt, head, panel, empty, toast, pager, pageState, sect, drawer, dialog, confirmBox,
   statusBadge, statusCell, dataGrid, inlineError, lab, seg, inp, clone, cleanObj, describeCron, every, hashQuery,
   kindIcon, rowsOf, runMs, store,
 } from "./ui.js";
@@ -22,11 +22,13 @@ export async function pageJobs(args) {
 // ------------------------------------------------------------------ list
 function pageList() {
   const box = h("div");
+  const count = pill("-");
   const st = pageState("jobs", 25);
   async function draw() {
     if (!box.childElementCount) put(box, h("div", { class: "pb" }, h("div", { class: "sk", style: "height:200px" })));
     let page;
     try { page = await apiPage("/jobs", st); } catch (e) { put(box, h("div", { class: "pb" }, inlineError(e))); return; }
+    count.textContent = fmt.int(page.total);
     if (!page.total) { put(box, empty("flow-arrow", "No jobs yet.", h("a", { class: "btn primary", href: "#/jobs/new" }, icon("plus"), "New job"))); return; }
     put(box, h("div", { class: "scroll-x" }, h("table", { class: "t" },
       h("thead", {}, h("tr", {}, h("th", { style: "width:36px" }, h("span", { class: "sr" }, "Status")), h("th", {}, "Job"), h("th", { class: "hide-sm" }, "From"), h("th", { class: "hide-sm" }, "To"),
@@ -37,26 +39,26 @@ function pageList() {
           h("td", {}, statusCell(r.status)),
           h("td", {}, h("div", { class: "row nowrap", style: "gap:6px" }, h("a", { class: "mono", href: `#/jobs/${enc(j.name)}`, onclick: (e) => e.stopPropagation() }, j.name),
             j.problems && j.problems.length ? h("span", { class: "badge bad", title: j.problems.join(" ") }, icon("warning"), String(j.problems.length)) : null),
-          j.description ? h("div", { class: "faint small", style: "max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, j.description) : null),
+          j.description ? h("div", { class: "faint small desc" }, j.description) : null),
           h("td", { class: "mono small hide-sm" }, sourceText(j)),
           h("td", { class: "mono small hide-sm" }, targetText(j)),
           h("td", { class: "small" }, r.started_at ? fmt.ago(r.started_at) : h("span", { class: "faint" }, "Never")),
           h("td", { class: "muted small hide-sm" }, j.next_run ? fmt.ago(j.next_run) : "By hand"),
           h("td", { class: "r" }, h("button", { class: "btn sm", disabled: r.status === "running", "aria-label": `Run ${j.name}`,
-            onclick: async (e) => { e.stopPropagation(); if (await startRun(j.name)) draw(); } }, icon("play"), "Run")));
+            onclick: async (e) => { e.stopPropagation(); if (await startRun(j.name)) draw(); } }, icon("play"), h("span", { class: "lbl" }, "Run"))));
       })))),
     page.total > 10 ? h("div", { class: "pf" }, pager(st, page.total, draw)) : null);
     if (page.items.some((j) => j.last_run && j.last_run.status === "running") && !st.polling) { st.polling = true; every(3000, () => { if (box.isConnected) draw(); }); }
   }
   draw();
-  return [head("Jobs", null, h("a", { class: "btn primary", href: "#/jobs/new" }, icon("plus"), "New job")), panel("All jobs", null, box)];
+  return [head("Jobs", null, h("a", { class: "btn primary", href: "#/jobs/new" }, icon("plus"), "New job")), panel(h("div", { class: "row" }, h("h2", {}, "All jobs"), count), null, box)];
 }
 
 // ------------------------------------------------------------------ job detail
 async function pageJob(name) {
   const job = await api(`/jobs/${enc(name)}`);
   refreshSide();
-  const runsBox = h("div");
+  const runsBox = h("div", {}, h("div", { class: "pb" }, h("div", { class: "sk", style: "height:120px", "aria-busy": "true" })));
   const st = pageState(`job-runs-${name}`, 10);
   const runBtn = h("button", { class: "btn primary", onclick: run, disabled: !!(job.last_run && job.last_run.status === "running") }, icon("play"), "Run");
   // while a run is running, Last runs and the Run button are re-read every 2 s; the poll stops when nothing runs
@@ -385,7 +387,7 @@ async function pageBuilder(name, stepArg) {
     const steps = job.transform;
     const move = (i, d) => { const j = i + d; if (j < 0 || j >= steps.length) return; [steps[i], steps[j]] = [steps[j], steps[i]]; draw(); };
     return [
-      h("p", { class: "muted small" }, "Optional. Applied in order on the staged file."),
+      h("p", { class: "muted small" }, "Applied in order on the staged file."),
       sect("job-transform", `Steps (${steps.length})`, { open: steps.length > 0, icon: "tree-structure" },
         steps.length ? h("div", { class: "tsteps" }, steps.map((x, i) => {
           const meta = STEP_TYPES.find((y) => y.t === stepType(x)) || { l: stepType(x) };
@@ -395,7 +397,7 @@ async function pageBuilder(name, stepArg) {
               h("button", { class: "btn ghost sm icon", "aria-label": "Move down", disabled: i === steps.length - 1, onclick: () => move(i, 1) }, icon("arrow-down")),
               h("button", { class: "btn ghost sm icon", "aria-label": "Remove step", onclick: () => { steps.splice(i, 1); draw(); } }, icon("trash"))));
         })) : h("p", { class: "faint small" }, "No steps: the staged rows go on as they are."),
-        h("div", { class: "row" }, STEP_TYPES.map((y) => h("button", { class: "btn sm", onclick: () => { steps.push(newStep(y.t)); draw(); } }, icon(y.ic), y.l))),
+        h("div", { class: "chips", role: "group", "aria-label": "Add a step" }, STEP_TYPES.map((y) => h("button", { class: "chip", onclick: () => { steps.push(newStep(y.t)); draw(); } }, icon(y.ic), y.l))),
         h("div", { class: "row" }, h("button", { class: "btn sm", onclick: previewTransform, disabled: isNew }, icon("eye"), "Preview the result"),
           h("span", { class: "help" }, isNew ? "Save and run the extract once to preview." : "Runs on the last staged extract.")),
         h("datalist", { id: "tr-types" }, TYPES.map((x) => h("option", { value: x }))),

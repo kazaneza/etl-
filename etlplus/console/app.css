@@ -667,3 +667,23 @@ details.sect.flat > .sb { padding: 6px 0 0; }
 .card .cf .cmd { flex: 1 1 0; }
 .stack > div:empty:not(.sk), .page > div:empty:not(.sk) { display: none; }
 .shell.bare .page { max-width: none; } .shell.bare .main { min-height: 0; } .chooser-in > div:empty { display: none; }
+table.t td.small { white-space: nowrap; }
+@media (max-width: 860px) {
+  table.t .btn .lbl { display: none; }
+  table.t .btn.sm:has(.lbl) { width: 28px; padding: 0; }
+}
+/* gallery: the card is the target, its Add stays quiet until the card is hovered */
+.card.pick .btn.add { color: var(--link); }
+.card.pick:hover .btn.add { background: var(--primary-soft); color: var(--primary-soft-ink); }
+/* row actions in tables are quiet: a link-coloured label, the outline only on the row being pointed at */
+table.t .btn.sm:not(.primary):not(.danger) { border-color: transparent; color: var(--link); }
+table.t tr:hover .btn.sm:not(.primary):not(.danger), table.t .btn.sm:focus-visible { border-color: var(--line-strong); }
+@media (max-width: 420px) {
+  /* eight icons and the theme switch on one row */
+  .nav { gap: 2px; }
+  .nav a { width: 36px; }
+  .side { gap: 2px; }
+}
+/* a description under a name in a table: one line, cut to the column */
+table.t .desc { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 860px) { table.t .desc { max-width: calc(100vw - 250px); } }

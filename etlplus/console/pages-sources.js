@@ -60,7 +60,7 @@ function connCard(c) {
     h("div", { class: "cb" }, h("div", {}, kindLabel(c.kind)), h("div", { class: "mono", title: where(c) }, where(c))),
     h("div", { class: "cf" },
       h("a", { class: "btn sm", href: `#/sources/${enc(c.id)}` }, icon(isFileKind(c.kind) ? "folder-open" : "table"), isFileKind(c.kind) ? "Files" : "Tables"),
-      h("button", { class: "btn sm", onclick: () => quickTest(c.id) }, icon("plug-charging"), "Test"),
+      h("button", { class: "btn ghost sm", onclick: () => quickTest(c.id) }, icon("plug-charging"), "Test"),
       h("span", { class: "grow" }),
       h("button", { class: "btn ghost sm icon", "aria-label": `Edit ${c.id}`, title: "Edit", onclick: () => openConnection({ conn: c }) }, icon("pencil-simple"))));
 }
@@ -142,15 +142,16 @@ export async function galleryView({ onPick, roles }) {
   return box;
 }
 
+// the whole card picks; the one button is quiet, so a page of cards does not read as a wall of buttons
 function galleryCard(c, onPick) {
   const installed = c.installed !== false;
-  return h("div", { class: "card" },
+  return h("div", { class: "card pick", onclick: (e) => { if (!e.target.closest("button, a, code")) onPick(c); } },
     h("div", { class: "ch" }, h("span", { class: "ico" }, icon(cardIcon(c))), h("span", { class: "ttl wrap", title: c.label }, c.label), c.status ? kindStatus(c.status) : null),
     h("div", { class: "cb", title: c.verify_note || c.needs || "" }, c.needs || ""),
     h("div", { class: "cf" },
       installed ? null : h("div", { class: "cmd grow", title: c.install || "" }, h("code", {}, c.install || "Not installed"), c.install ? copyBtn(c.install, "Copy the install command") : null),
       installed ? h("span", { class: "grow" }) : null,
-      h("button", { class: "btn sm", "aria-label": `Add ${c.label}`, onclick: () => onPick(c) }, icon("plus"), "Add")));
+      h("button", { class: "btn ghost sm add", "aria-label": `Add ${c.label}`, onclick: () => onPick(c) }, icon("plus"), "Add")));
 }
 
 // a file or bank-file card asks where the file comes from, then opens the job builder

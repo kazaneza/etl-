@@ -157,7 +157,8 @@ export function diagramPreview(job) {
 
 // the job detail diagram: GET /api/jobs/{name}/flow, polled every 2 s while live
 export function diagramView(name, job) {
-  const box = h("div");
+  // a skeleton until the flow answers, so the card is never blank while the server is busy
+  const box = h("div", {}, h("div", { class: "sk", style: "height:92px", "aria-busy": "true" }));
   const detail = h("div", { class: "step-detail hidden", "aria-live": "polite" });
   const note = h("div");
   let flow = null;

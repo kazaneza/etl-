@@ -159,7 +159,7 @@ export async function pageStage(args) {
   return [
     head("Stage", null, picker),
     h("div", { class: "row" },
-      h("span", { class: "muted small grow" }, `${staged.length} staged runs, ${fmt.bytes(total)}`),
+      h("span", { class: "muted small grow" }, `${staged.length} staged ${staged.length === 1 ? "run" : "runs"}, ${fmt.bytes(total)}`),
       h("button", { class: "btn", disabled: !staged.length, onclick: () => startRun(name, ["transform", "map", "load"]) }, icon("tree-structure"), "Transform and load"),
       h("button", { class: "btn primary", disabled: !staged.length, onclick: () => startRun(name, ["load"]) }, icon("upload-simple"), "Load again")),
     list,

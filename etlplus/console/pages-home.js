@@ -14,7 +14,7 @@ export async function pageChooser(onReady) {
 
   function choices() {
     const demoBtn = h("button", { class: "btn primary", onclick: () => choose("demo") }, icon("flask"), "Start with demo data");
-    const realBtn = h("button", { class: "btn primary", onclick: () => choose("real") }, icon("plugs"), "Connect my own data");
+    const realBtn = h("button", { class: "btn", onclick: () => choose("real") }, icon("plugs"), "Connect my own data");
     put(inner, brand,
       h("div", { class: "stack tight" }, h("h1", {}, "How do you want to start?"), h("p", { class: "muted" }, "You can switch later in Settings. Both are kept.")),
       h("div", { class: "choices" },
@@ -138,7 +138,7 @@ export async function pageOverview() {
           h("td", { class: "r num hide-sm" }, fmt.int(rowsOf(r, "load"))),
           h("td", { class: "muted small hide-sm" }, j.next_run ? fmt.ago(j.next_run) : "By hand"),
           h("td", { class: "r" }, h("button", { class: "btn sm", "aria-label": `Run ${j.name}`, disabled: r.status === "running",
-            onclick: async (e) => { e.stopPropagation(); const x = await startRun(j.name); if (x && x.run_id) location.hash = `#/runs/${enc(x.run_id)}`; } }, icon("play"), "Run")));
+            onclick: async (e) => { e.stopPropagation(); const x = await startRun(j.name); if (x && x.run_id) location.hash = `#/runs/${enc(x.run_id)}`; } }, icon("play"), h("span", { class: "lbl" }, "Run"))));
       })))),
     jobs.length > 10 ? h("div", { class: "pf" }, pager(st, jobs.length, drawJobs)) : null);
   }

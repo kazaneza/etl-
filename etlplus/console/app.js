@@ -36,6 +36,7 @@ async function route(keep = false) {
   }
   if (app.start.state === "choose") { showChooser(); return; }
   $shell.classList.remove("bare");
+  drawProjectBadge();
   const { name, args } = parts();
   document.querySelectorAll("#nav a").forEach((a) => {
     const on = a.dataset.page === name;
@@ -91,11 +92,19 @@ themeIcon();
 const $search = document.getElementById("search");
 const $q = document.getElementById("search-q");
 let jumpItems = null;
+let jumpLoad = null;
+let jumpAt = 0;
 let jumpSel = 0;
 const jumpBox = h("div", { class: "jump hidden", id: "jump", role: "listbox", "aria-label": "Matches" });
 $search.append(jumpBox);
-async function loadJump() {
-  if (jumpItems) return jumpItems;
+// read once, kept for 30 s; a focus after that reads again
+function loadJump() {
+  if (jumpLoad && Date.now() - jumpAt < 30000) return jumpLoad;
+  jumpAt = Date.now();
+  jumpLoad = readJump();
+  return jumpLoad;
+}
+async function readJump() {
   const [jobs, conns, dests] = await Promise.allSettled([api("/jobs"), api("/connections"), api("/destinations")]);
   const list = (r) => (r.status === "fulfilled" && Array.isArray(r.value) ? r.value : []);
   jumpItems = [
@@ -109,6 +118,10 @@ function closeJump() { jumpBox.classList.add("hidden"); $q.setAttribute("aria-ex
 async function drawJump() {
   const f = $q.value.trim().toLowerCase();
   if (!f) { closeJump(); return; }
+  if (!jumpItems) {
+    put(jumpBox, h("div", { class: "none" }, "Searching..."));
+    jumpBox.classList.remove("hidden");
+  }
   const items = (await loadJump()).filter((x) => x.label.toLowerCase().includes(f)).slice(0, 8);
   jumpSel = Math.min(jumpSel, Math.max(0, items.length - 1));
   put(jumpBox, items.length ? items.map((x, i) => h("a", { href: x.href, role: "option", class: i === jumpSel ? "on" : "", "aria-selected": String(i === jumpSel),
@@ -118,7 +131,7 @@ async function drawJump() {
   $q.setAttribute("aria-expanded", "true");
 }
 $q.addEventListener("input", () => { jumpSel = 0; drawJump(); });
-$q.addEventListener("focus", () => { jumpItems = null; if ($q.value) drawJump(); });
+$q.addEventListener("focus", () => { loadJump(); if ($q.value) drawJump(); });
 $q.addEventListener("blur", () => setTimeout(closeJump, 120));
 $q.addEventListener("keydown", (e) => {
   const opts = [...jumpBox.querySelectorAll("a")];

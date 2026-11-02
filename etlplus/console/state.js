@@ -73,7 +73,9 @@ export function drawProjectBadge() {
   const o = app.overview || {};
   const proj = o.project && typeof o.project === "object" ? o.project : null;
   const kind = st.active || (proj ? proj.kind || proj.id : null);
-  const name = proj ? proj.name || proj.label || proj.id : o.name || o.project;
+  // the project's own name first (from /start, so it is right before /overview answers), then its kind
+  const listed = (st.projects || []).find((p) => p.id === st.active) || null;
+  const name = (listed && listed.name) || (proj ? proj.name || proj.id : o.name || o.project) || null;
   const nameEl = document.getElementById("project-name");
   const subEl = document.getElementById("project-sub");
   if (kind === "demo" || kind === "real") {
@@ -81,7 +83,7 @@ export function drawProjectBadge() {
     el.className = `badge proj ${kind === "demo" ? "warn" : "info"}`;
     put(el, h("span", { class: "proj-text" }, word));
     el.setAttribute("aria-label", `Project: ${word}. Open settings`);
-    if (nameEl) nameEl.textContent = name || word;
+    if (nameEl) nameEl.textContent = name || (kind === "demo" ? "Demo project" : "My project");
     if (subEl) subEl.textContent = word;
   } else {
     el.className = "badge proj";
