@@ -256,7 +256,7 @@ def _pk_source(proj):
     con = sqlite3.connect(Path(proj.path) / "core.db")
     con.execute("CREATE TABLE accounts (account_no VARCHAR(20) PRIMARY KEY, branch TEXT, opened_on DATE, "
                 "balance DECIMAL(18,2), " + "x" * 70 + " INTEGER)")
-    con.execute("INSERT INTO accounts VALUES ('A0001', 'kigali', '2026-01-02', 12.5, 3)")
+    con.execute("INSERT INTO accounts VALUES ('A0001', 'north', '2026-01-02', 12.5, 3)")
     con.commit()
     con.close()
 
