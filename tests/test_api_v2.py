@@ -207,6 +207,14 @@ def test_destination_routes(client):
     design = client.post("/api/destinations/design-from-source",
                          json={"source": {"connection": "core", "table": "customers"}, "connection": "rep"})
     assert design.status_code == 200 and [c["name"] for c in design.json()] == ["customer_number", "segment", "amount"]
+    detail = client.post("/api/destinations/design-from-source",
+                         json={"source": {"connection": "core", "table": "customers"}, "connection": "rep", "detail": True})
+    dj = detail.json()
+    assert detail.status_code == 200 and [c["name"] for c in dj["columns"]] == ["customer_number", "segment", "amount"]
+    assert dj["table"] == "customers" and dj["kind"] == "duckdb" and all("native" in c and "source_type" in c for c in dj["columns"])
+    assert isinstance(dj["keys"], list) and isinstance(dj["checks"], list) and dj["id"]
+    bad = client.put("/api/destinations/empty_one", json={"connection": "rep", "table": "t", "design": "create", "columns": []})
+    assert bad.status_code in (400, 422) and "copy them from a source table" in bad.text
     assert client.post("/api/destinations/design-from-source", json={"source": {"connection": "ghost",
                                                                                "table": "x"}}).status_code == 400
     ren = client.put("/api/destinations/customers2", json=dict(DEST, rename_from="custs"))

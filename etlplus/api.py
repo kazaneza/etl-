@@ -1177,6 +1177,13 @@ def create_app(project=None, start_scheduler: bool = True, hosts: set[str] | Non
         cid = (body or {}).get("connection")
         kind = ((p.connections or {}).get(cid) or {}).get("kind") or "duckdb"
         try:
+            steps = (body or {}).get("transform") or None
+            if steps is not None and not isinstance(steps, list):
+                raise HTTPException(422, "transform is a list of steps.")
+            if (body or {}).get("detail"):
+                return _mod("destinations").design_detail(p, src, kind, steps)
+            if steps:
+                return _mod("destinations").design_from_source(p, src, kind, steps)
             return _mod("destinations").design_from_source(p, src, kind)
         except HTTPException:
             raise

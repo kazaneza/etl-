@@ -163,7 +163,7 @@ def problems(project, did, spec) -> list[str]:
             p.append("design is create (etl+ creates the table) or existing (the table is there already).")
         if design == "create":
             if not isinstance(cols, _list) or not cols:
-                p.append("design create needs columns.")
+                p.append("Add at least one column, or copy them from a source table.")
             else:
                 p += [_problem_text(x) for x in ddl.check(kind, cols, keys) if x["level"] == "error"]
         elif cols is not None and not isinstance(cols, _list):
@@ -651,10 +651,19 @@ def _db_preview(project, spec, limit, offset) -> dict:
 
 # ---------------------------------------------------------------- design from a source
 
-def design_from_source(project, source: dict, target_kind: str = "duckdb") -> list[dict]:
-    """Proposed columns with generic types from a sample of the source."""
+def design_from_source(project, source: dict, target_kind: str = "duckdb", transform=None) -> list[dict]:
+    """Proposed columns with generic types from a sample of the source; with transform steps,
+    from the sample after them (the columns a job's mapping sees)."""
     from etlplus import mapping
-    table = mapping.sample_source(project, dict(source or {}), mapping.SAMPLE_ROWS)
+    if transform:
+        import tempfile
+
+        import pyarrow.parquet as pq
+        with tempfile.TemporaryDirectory(prefix="etlplus-design-") as tmp:
+            path = mapping._sample_live(project, {"source": dict(source or {}), "transform": _list(transform)}, Path(tmp))
+            table = pq.read_table(str(path))
+    else:
+        table = mapping.sample_source(project, dict(source or {}), mapping.SAMPLE_ROWS)
     personal = mapping._personal_source_columns(project, {"source": source})
     out = []
     for f in table.schema:
@@ -667,5 +676,147 @@ def design_from_source(project, source: dict, target_kind: str = "duckdb") -> li
                 while n < ml * 2 and n < 4000:
                     n *= 2
                 gen = f"string({min(n, 4000)})"
-        out.append({"name": f.name, "type": gen, "nullable": True, "personal": f.name in personal})
+        out.append({"name": f.name, "type": gen, "nullable": True, "personal": f.name in personal,
+                    "source_type": str(f.type), "sampled": gen.startswith("string(")})
     return out
+
+
+_PK_INFO_SCHEMA = ("postgres", "sqlserver", "mysql")
+_INTS = ("integer", "bigint")
+
+
+def source_primary_key(project, source: dict) -> _list:
+    """The primary key columns of a source table, in key order; [] when the database cannot tell
+    (a query, a file, a view, a kind whose catalogue is not read here). Guarded SELECTs only."""
+    from etlplus import connections, drivers
+    src = dict(source or {})
+    cid, table = src.get("connection"), src.get("table")
+    if not cid or not table or src.get("query"):
+        return []
+    spec = (project.connections or {}).get(cid) or {}
+    kind = spec.get("kind")
+    if not kind or ddl.is_file_kind(kind):
+        return []
+    try:
+        fam = drivers.family(kind)
+    except Exception:
+        return []
+    schema, name = connections.split_table(table)
+    ph = lambda i: connections.placeholder(kind, i)  # noqa: E731
+    both = [name, schema] if schema else [name]
+    if fam == "sqlite":
+        sql, params = "SELECT name FROM pragma_table_info(?) WHERE pk > 0 ORDER BY pk", [name]
+    elif fam == "duckdb":
+        sql = ("SELECT UNNEST(constraint_column_names) FROM duckdb_constraints() "
+               "WHERE constraint_type = 'PRIMARY KEY' AND table_name = ?" + (" AND schema_name = ?" if schema else ""))
+        params = both
+    elif fam in _PK_INFO_SCHEMA:
+        sql = ("SELECT k.column_name FROM information_schema.table_constraints t "
+               "JOIN information_schema.key_column_usage k ON k.constraint_name = t.constraint_name "
+               "AND k.table_schema = t.table_schema AND k.table_name = t.table_name "
+               f"WHERE t.constraint_type = 'PRIMARY KEY' AND t.table_name = {ph(0)}"
+               + (f" AND t.table_schema = {ph(1)}" if schema else "") + " ORDER BY k.ordinal_position")
+        params = both
+    elif fam == "oracle":
+        sql = ("SELECT c.column_name FROM all_constraints k JOIN all_cons_columns c "
+               "ON c.owner = k.owner AND c.constraint_name = k.constraint_name "
+               f"WHERE k.constraint_type = 'P' AND UPPER(k.table_name) = UPPER({ph(0)}) AND k.owner = "
+               + (f"UPPER({ph(1)})" if schema else "USER") + " ORDER BY c.position")
+        params = both
+    else:
+        return []
+    try:
+        conn = connections.connect(project, cid, read_only=True)
+        try:
+            _, rows = connections.fetch(conn, kind, sql, params)
+        finally:
+            connections.close(conn)
+    except Exception:
+        return []
+    return [str(r[0]) for r in rows if r and r[0] is not None]
+
+
+def suggest_table_name(target_kind: str, source: dict) -> str:
+    """The source table's (or file's) name, made to fit the destination's name rules: letters,
+    digits and _, lower case, not starting with a digit, within the kind's name limit."""
+    src = dict(source or {})
+    raw = src.get("table") or ""
+    if raw:
+        try:
+            raw = ddl.split_table(raw)[-1]
+        except Exception:
+            raw = str(raw).split(".")[-1]
+    elif src.get("files"):
+        raw = re.split(r"[\\/]", str(src["files"]))[-1]
+        raw = re.sub(r"\.[A-Za-z0-9]{1,8}$", "", raw)
+    name = re.sub(r"[^a-z0-9_]+", "_", str(raw).lower()).strip("_") or "table"
+    if name[0].isdigit():
+        name = "t_" + name
+    try:
+        lim = ddl.name_limit(target_kind)
+    except Exception:
+        lim = 63
+    name = name[:lim].rstrip("_") or "table"
+    try:
+        ddl.quote_table(target_kind, name)
+    except Exception:
+        return "table"
+    return name
+
+
+def suggest_id(project, base: str) -> str:
+    """A destination id like base that is free in this project."""
+    base = re.sub(r"[^A-Za-z0-9_]+", "_", str(base or "")).strip("_")[:50] or "destination"
+    if base[0].isdigit():
+        base = "d_" + base
+    taken = {str(k).lower() for k in (getattr(project, "destinations", None) or {})}
+    out, i = base, 2
+    while out.lower() in taken:
+        out = f"{base}_{i}"
+        i += 1
+    return out
+
+
+def design_detail(project, source: dict, target_kind: str = "duckdb", transform=None) -> dict:
+    """design_from_source plus what the copy dialog shows: each column's source type and the
+    destination's native type, the source primary key as the default key, personal flags,
+    ddl.check problems for the destination kind, and a table name and id to start from."""
+    from etlplus import connections
+    src = dict(source or {})
+    target_kind = target_kind or "duckdb"
+    file_target = ddl.is_file_kind(target_kind)
+    check_kind = "duckdb" if file_target else target_kind
+    cols = design_from_source(project, src, check_kind, transform)
+    spec = (project.connections or {}).get(src.get("connection")) or {}
+    if src.get("table") and not src.get("query") and spec.get("kind") and not ddl.is_file_kind(spec["kind"]):
+        try:
+            live = {str(c["name"]).lower(): c for c in connections.list_columns(project, src["connection"], src["table"])}
+        except Exception:
+            live = {}
+        for c in cols:
+            lc = live.get(str(c["name"]).lower())
+            if not lc:
+                continue
+            c["source_type"] = lc.get("type") or c["source_type"]
+            gen = str(lc.get("generic") or "")
+            if gen.startswith(("string(", "decimal(")) or (gen in _INTS and c["type"] in _INTS):
+                c["type"], c["sampled"] = gen, False  # the declared type, not one guessed from rows
+            if lc.get("nullable") is False:
+                c["nullable"] = False
+    names = {str(c["name"]).lower(): c["name"] for c in cols}
+    keys = [names[k.lower()] for k in source_primary_key(project, src) if k.lower() in names]
+    for c in cols:
+        c["key"] = c["name"] in keys
+        if c["key"]:
+            c["nullable"] = False
+        try:
+            c["native"] = None if file_target else ddl.native_type(check_kind, c["type"])
+        except Exception:
+            c["native"] = None
+    checks = ddl.check(check_kind, [{"name": c["name"], "type": c["type"]} for c in cols], keys)
+    if any(c.get("sampled") for c in cols):
+        checks.append({"level": "info", "column": None,
+                       "message": "Text lengths come from a sample of rows; widen a column if longer values can come."})
+    table = suggest_table_name(check_kind, src)
+    return {"columns": cols, "keys": keys, "checks": checks, "table": table,
+            "id": suggest_id(project, table), "kind": target_kind, "name_limit": ddl.name_limit(check_kind)}

@@ -405,3 +405,20 @@ def test_layout_helpers(node_out):
     assert sorted(node_out["overlaps"]) == [0, 1]
     line = node_out["sample"]
     assert line.startswith("TD000125NM..") and len(line) == 20
+
+
+def test_destination_design_starts_with_two_choices_and_jobs_have_the_shortcut():
+    dest = read(CONSOLE / "pages-destinations.js")
+    for words in ('"Copy from a source table"', '"Same columns and types as a table or file you read from."', '"Start empty"',
+                  '"Use these columns"', "function startChoices()", "d.columns.length ? designTable() : startChoices()",
+                  "export async function copyColumns(", "detail: true", "/connections/${enc(S.connection)}/tables",
+                  "/connections/${enc(S.connection)}/files", "pager(listSt", 'type: "search"'):
+        assert words in dest, words
+    assert '"Start from a source"' not in dest
+    jobs = read(CONSOLE / "pages-jobs.js")
+    for words in ('"New destination like this source"', "readDesign(srcBody(), like.connection, (job.transform", 'spec.design = "create"',
+                  'go("mapping")', "T.destination = like.id", "autoMatch: matchNext === T.destination"):
+        assert words in jobs, words
+    assert "autoMatch" in read(CONSOLE / "mapping.js")
+    css = read(CONSOLE / "app.css")
+    assert ".choice.plain .ico" in css and ".copy-browse" in css

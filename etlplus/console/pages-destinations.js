@@ -167,39 +167,39 @@ export async function openDestination({ id, spec, onSaved, onClose, connection }
         })))) : h("p", { class: "faint small" }, "No columns yet."),
       d.columns.length > 10 ? pager(colPage, d.columns.length, () => draw()) : null,
       h("div", { class: "row" },
-        h("button", { class: "btn sm", onclick: () => { d.columns.push({ name: `column_${d.columns.length + 1}`, type: "string(255)", nullable: true }); colPage.offset = Math.floor((d.columns.length - 1) / colPage.limit) * colPage.limit; dirty(); draw(); } }, icon("plus"), "Add column"),
-        h("button", { class: "btn sm ghost", onclick: fromSource }, icon("magic-wand"), "Start from a source")));
+        h("button", { class: "btn sm", onclick: addColumn }, icon("plus"), "Add column"),
+        h("button", { class: "btn sm ghost", onclick: fromSource }, icon("copy"), "Copy from a source")));
+  }
+
+  function addColumn() {
+    d.columns.push({ name: `column_${d.columns.length + 1}`, type: "string(255)", nullable: true });
+    colPage.offset = Math.floor((d.columns.length - 1) / colPage.limit) * colPage.limit;
+    dirty(); draw();
+  }
+
+  // Design columns with nothing designed yet: two equal ways to start.
+  function startChoices() {
+    return h("div", { class: "choices start-choices" },
+      h("div", { class: "choice real" }, h("div", { class: "ico" }, icon("copy")),
+        h("h2", {}, "Copy from a source table"), h("p", { class: "small" }, "Same columns and types as a table or file you read from."),
+        h("div", { class: "row" }, h("button", { class: "btn primary", onclick: fromSource }, icon("table"), "Pick a table"))),
+      h("div", { class: "choice plain" }, h("div", { class: "ico" }, icon("plus")),
+        h("h2", {}, "Start empty"), h("p", { class: "small" }, "Add the columns by hand, one by one."),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: addColumn }, icon("plus"), "Add column"))));
   }
 
   async function fromSource() {
-    const sources = conns.filter((c) => (c.role || "source") !== "target");
-    const src = { connection: sources[0] ? sources[0].id : "", table: "", files: "", format: "" };
-    const dl = dialog("Start from a source");
-    const e2 = h("div", { class: "err", role: "alert" });
-    const drawDl = () => {
-      const c = conns.find((x) => x.id === src.connection);
-      const files = c && isFileKind(c.kind);
-      put(dl.box, h("h2", {}, "Start from a source"),
-        lab("Connection", h("select", { class: "input", onchange: (e) => { src.connection = e.target.value; drawDl(); } },
-          sources.map((x) => h("option", { value: x.id, selected: x.id === src.connection }, `${x.id} (${kindLabel(x.kind)})`)))),
-        files ? h("div", { class: "grid2" },
-          lab("Files", h("input", { class: "input mono", value: src.files, placeholder: "bank/*.txt", oninput: (e) => { src.files = e.target.value; } })),
-          lab("Format", h("input", { class: "input mono", value: src.format, placeholder: "mt940", oninput: (e) => { src.format = e.target.value; } })))
-          : lab("Table", h("input", { class: "input mono", value: src.table, placeholder: "main.customers", oninput: (e) => { src.table = e.target.value; } })),
-        e2,
-        h("div", { class: "row" }, h("span", { class: "grow" }), h("button", { class: "btn ghost", onclick: dl.close }, "Cancel"),
-          h("button", { class: "btn primary", onclick: async () => {
-            const source = { connection: src.connection };
-            if (files) { source.files = src.files; if (src.format) source.format = src.format; } else source.table = src.table;
-            try {
-              const cols = await api("/destinations/design-from-source", { method: "POST", body: { source, connection: d.connection } });
-              if (d.columns.length && !(await confirmBox("Replace the columns?", `${d.columns.length} columns are designed now.`, "Replace"))) return;
-              d.columns = cols.map((c) => ({ name: c.name, type: c.type, nullable: c.nullable !== false, personal: !!c.personal }));
-              d.design = "create"; dirty(); dl.close(); draw();
-            } catch (e) { e2.textContent = e.message; }
-          } }, icon("check"), "Use these columns")));
-    };
-    drawDl();
+    await copyColumns({ target: d.connection, onUse: async (r) => {
+      if (d.columns.length && !(await confirmBox("Replace the columns?", `${d.columns.length} columns are designed now.`, "Replace"))) return false;
+      d.columns = r.columns;
+      d.keys = r.keys;
+      d.design = "create";
+      if (!d.table && r.table) d.table = r.table;
+      if (isNew && !d.id && r.id) d.id = r.id;
+      colPage.offset = 0;
+      dirty(); draw();
+      return true;
+    } });
   }
 
   async function readLive() {
@@ -271,7 +271,7 @@ export async function openDestination({ id, spec, onSaved, onClose, connection }
         seg("Table", [["existing", "Existing table"], ["create", "Design columns"]], d.design || "create", (v) => { d.design = v; dirty(); draw(); }),
         d.design === "existing" ? existingBlock() : [
           lab("Table to create", h("input", { class: "input mono", value: d.table || "", placeholder: "main.customers", oninput: (e) => { d.table = e.target.value; dirty(); } })),
-          designTable(),
+          d.columns.length ? designTable() : startChoices(),
         ],
         ddlBlock(),
       ],
@@ -347,4 +347,161 @@ export async function openDestination({ id, spec, onSaved, onClose, connection }
   draw();
   dr.focus();
   return dr;
+}
+
+// ------------------------------------------------------------------ copy columns from a source
+// The design from a source, column by column: what it reads as, what the destination stores it as,
+// and the check for the destination's kind. POST /api/destinations/design-from-source {detail}.
+export async function readDesign(source, target, transform) {
+  const body = { source, connection: target || undefined, detail: true };
+  if (transform && transform.length) body.transform = transform;
+  return api("/destinations/design-from-source", { method: "POST", body });
+}
+// One design column as the destination keeps it.
+export function designColumn(c) {
+  const out = { name: c.name, type: c.type, nullable: c.nullable !== false && !c.key };
+  if (c.personal) out.personal = true;
+  return out;
+}
+
+// copyColumns({ target, onUse }): pick a source connection, then a table (or a file) from a
+// searchable, paged list; the columns show with their types for the target's kind, all ticked.
+// onUse({ columns, keys, table, id }) gets the ticked ones; it returns false to keep the dialog.
+export async function copyColumns({ target, onUse }) {
+  await loadKinds();
+  const conns = await loadConnections();
+  const sources = conns.filter((c) => (c.role || "source") !== "target");
+  const formatList = await api("/formats").catch(() => []);
+  const formats = (Array.isArray(formatList) ? formatList : (formatList && formatList.formats) || []).filter((f) => f && f.id);
+  const S = { connection: sources[0] ? sources[0].id : "", table: "", files: "", format: "" };
+  const dl = dialog("Copy from a source table", true);
+  dl.box.classList.add("copy-dlg");
+  const listSt = pageState("copy-from-list", 10);
+  const colSt = pageState("copy-from-cols", 25);
+  let items = null;
+  let filter = "";
+  let detail = null;
+  let ticked = new Set();
+  const listBox = h("div");
+  const right = h("div", { class: "pb stack copy-right" });
+  const useBtn = h("button", { class: "btn primary", disabled: true, onclick: use }, icon("check"), "Use these columns");
+  const isFiles = () => { const c = sources.find((x) => x.id === S.connection); return !!c && isFileKind(c.kind); };
+  const nameOf = (t) => (t.schema ? `${t.schema}.${t.name}` : t.name);
+  const current = () => (isFiles() ? S.files : S.table);
+
+  async function loadItems() {
+    items = null; detail = null; ticked = new Set(); listSt.offset = 0; filter = "";
+    drawAll();
+    if (!S.connection) { items = []; drawAll(); return; }
+    try {
+      items = isFiles()
+        ? (await api(`/connections/${enc(S.connection)}/files`)).map((f) => ({ name: f.path, format: f.format, kind: "file" }))
+        : await api(`/connections/${enc(S.connection)}/tables`);
+    } catch (e) { items = e; }
+    drawAll();
+  }
+
+  async function pick(name, format) {
+    if (isFiles()) { S.files = name; if (format) S.format = format; } else S.table = name;
+    detail = "loading"; drawList(); drawRight();
+    const source = { connection: S.connection };
+    if (isFiles()) { source.files = S.files; if (S.format) source.format = S.format; } else source.table = S.table;
+    const asked = current();
+    let r;
+    try { r = await readDesign(source, target); } catch (e) { r = e; }
+    if (asked !== current()) return;
+    detail = r;
+    ticked = new Set(r instanceof Error ? [] : r.columns.map((c) => c.name));
+    colSt.offset = 0;
+    drawRight();
+  }
+
+  function drawList() {
+    if (items === null) { put(listBox, h("div", { class: "pb stack" }, [1, 2, 3, 4].map(() => h("div", { class: "sk", style: "height:28px" })))); return; }
+    if (items instanceof Error) { put(listBox, h("div", { class: "pb" }, inlineError(items))); return; }
+    const f = filter.toLowerCase();
+    const shown = items.filter((t) => nameOf(t).toLowerCase().includes(f));
+    const rows = shown.slice(listSt.offset, listSt.offset + listSt.limit);
+    put(listBox,
+      h("div", { class: "list", role: "listbox", "aria-label": isFiles() ? "Files" : "Tables" }, rows.length ? rows.map((t) => {
+        const n = nameOf(t);
+        const on = current() === n;
+        return h("button", { class: on ? "on" : "", role: "option", "aria-selected": String(on), onclick: () => pick(n, t.format) },
+          icon(t.kind === "file" ? "file" : t.kind === "view" ? "eye" : "table"),
+          h("span", { class: "grow mono ell" }, n),
+          t.rows !== undefined && t.rows !== null ? h("span", { class: "faint small num" }, String(t.rows)) : null);
+      }) : h("div", { class: "empty" }, h("p", { class: "small" }, items.length ? "Nothing matches." : isFiles() ? "No files." : "No tables."))),
+      shown.length > listSt.limit ? h("div", { class: "pf" }, pager(listSt, shown.length, drawList)) : null);
+  }
+
+  function checkLine(c) {
+    const lv = c.level === "error" ? "bad" : c.level === "warn" ? "warn" : "info";
+    return h("div", { class: `chk ${lv}` }, icon(lv === "bad" ? "x-circle" : lv === "warn" ? "warning" : "info"), h("span", {}, c.message));
+  }
+
+  function drawRight() {
+    useBtn.disabled = !(detail && !(detail instanceof Error) && detail !== "loading" && ticked.size);
+    if (!detail) { put(right, h("div", { class: "empty" }, icon(isFiles() ? "file" : "table"), h("p", { class: "small" }, isFiles() ? "Pick a file to see its columns." : "Pick a table to see its columns."))); return; }
+    if (detail === "loading") { put(right, h("div", { class: "sk", style: "height:28px" }), h("div", { class: "sk", style: "height:200px" })); return; }
+    if (detail instanceof Error) { put(right, h("h3", { class: "mono ell" }, current()), inlineError(detail)); return; }
+    const cols = detail.columns;
+    const byCol = {};
+    for (const c of detail.checks || []) if (c.column) (byCol[c.column] = byCol[c.column] || []).push(c);
+    const general = (detail.checks || []).filter((c) => !c.column);
+    const all = ticked.size === cols.length;
+    const toggleAll = (e) => { ticked = new Set(e.target.checked ? cols.map((c) => c.name) : []); drawRight(); };
+    put(right,
+      h("div", { class: "row nowrap" }, h("h3", { class: "mono grow ell", title: current() }, current()),
+        h("span", { class: "faint small nowrap" }, `${ticked.size} of ${cols.length}`)),
+      general.length ? h("div", { class: "stack tight" }, general.map(checkLine)) : null,
+      h("table", { class: "t copy-cols" },
+        h("thead", {}, h("tr", {},
+          h("th", { class: "cb" }, h("input", { type: "checkbox", checked: all, "aria-label": "All columns", onchange: toggleAll })),
+          h("th", {}, "Column"), h("th", {}, "Source"), h("th", {}, detail.kind ? `In ${kindLabel(detail.kind) || detail.kind}` : "Type"))),
+        h("tbody", {}, cols.slice(colSt.offset, colSt.offset + colSt.limit).map((c) => h("tr", { class: ticked.has(c.name) ? "" : "off" },
+          h("td", { class: "cb" }, h("input", { type: "checkbox", checked: ticked.has(c.name), "aria-label": `Copy ${c.name}`,
+            onchange: (e) => { if (e.target.checked) ticked.add(c.name); else ticked.delete(c.name); drawRight(); } })),
+          h("td", {}, h("div", { class: "mono" }, c.name), h("div", { class: "src-n mono small muted" }, c.source_type || ""),
+            c.key || c.personal ? h("div", { class: "row tight-row" },
+              c.key ? h("span", { class: "badge info" }, icon("key"), "Key") : null,
+              c.personal ? h("span", { class: "badge warn" }, icon("user"), "Personal") : null) : null,
+            (byCol[c.name] || []).map(checkLine)),
+          h("td", { class: "mono small muted" }, c.source_type || ""),
+          h("td", { class: "mono small" }, c.native || c.type))))),
+      cols.length > colSt.limit ? pager(colSt, cols.length, drawRight) : null);
+  }
+
+  function drawAll() {
+    const files = isFiles();
+    put(dl.box,
+      h("h2", {}, "Copy from a source table"),
+      sources.length ? h("div", { class: files ? "grid3" : "grid2" },
+        lab("Source connection", h("select", { class: "input", onchange: (e) => { S.connection = e.target.value; S.table = ""; S.files = ""; S.format = ""; loadItems(); } },
+          sources.map((x) => h("option", { value: x.id, selected: x.id === S.connection }, `${x.id} (${kindLabel(x.kind) || x.kind})`)))),
+        files ? [
+          lab("Files", h("input", { class: "input mono", value: S.files, placeholder: "exports/*.csv", onchange: (e) => { S.files = e.target.value; if (S.files) pick(S.files, S.format); } })),
+          lab("Format", h("select", { class: "input", onchange: (e) => { S.format = e.target.value; if (S.files) pick(S.files, S.format); } },
+            h("option", { value: "" }, "From the name"),
+            formats.map((f) => h("option", { value: f.id, selected: f.id === S.format }, f.label || f.name || f.id)))),
+        ] : null)
+        : h("div", { class: "banner info" }, icon("info"), h("div", { class: "grow small" }, "No source connections yet. ", h("a", { href: "#/sources/add" }, "Add one"))),
+      h("div", { class: "browse copy-browse" },
+        h("div", {}, h("div", { class: "filter" }, h("input", { class: "input", type: "search", value: filter, placeholder: files ? "Find a file" : "Find a table", "aria-label": files ? "Find a file" : "Find a table",
+          oninput: (e) => { filter = e.target.value; listSt.offset = 0; drawList(); } })), listBox),
+        right),
+      h("div", { class: "row" }, h("span", { class: "grow" }), h("button", { class: "btn ghost", onclick: dl.close }, "Cancel"), useBtn));
+    drawList(); drawRight();
+  }
+
+  async function use() {
+    if (!detail || detail instanceof Error || detail === "loading") return;
+    const cols = detail.columns.filter((c) => ticked.has(c.name));
+    const names = new Set(cols.map((c) => c.name));
+    const r = { columns: cols.map(designColumn), keys: (detail.keys || []).filter((k) => names.has(k)), table: detail.table, id: detail.id, source: current() };
+    if ((await onUse(r)) !== false) dl.close();
+  }
+
+  drawAll();
+  loadItems();
+  return dl;
 }

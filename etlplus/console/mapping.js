@@ -48,7 +48,7 @@ function constValue(text, type) {
 }
 
 // mappingStep({job, destCols, previewName, onChange}) -> {el, errors(), focusFirstError(), refresh()}
-export function mappingStep({ job, destCols: destColsIn, previewName, onChange, payload }) {
+export function mappingStep({ job, destCols: destColsIn, previewName, onChange, payload, autoMatch = false }) {
   job.mapping = job.mapping || { columns: {} };
   const M = job.mapping;
   M.columns = M.columns || {};
@@ -93,6 +93,8 @@ export function mappingStep({ job, destCols: destColsIn, previewName, onChange, 
       if (preview.destination_columns && preview.destination_columns.length) destCols = preview.destination_columns;
       server = preview.problems || [];
       if (!Object.keys(sugg).length && srcCols.length && destCols.length) await loadSuggestions();
+      // a destination made like the source: its columns carry the source's names, so match them now
+      if (autoMatch && srcCols.length && destCols.length && !Object.keys(M.columns).length) { autoMatch = false; busy = false; matchByName(); return; }
     } catch (e) {
       if (e.status === 429) { busy = false; setTimeout(runPreview, 600); return; }
       previewErr = e;

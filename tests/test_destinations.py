@@ -70,7 +70,8 @@ def test_save_problems(proj):
     probs = destinations.save(proj, "x", {"connection": "nope", "table": "t", "columns": COLS})
     assert any("does not exist" in p for p in probs)
     probs = destinations.save(proj, "x", {"connection": "rep", "table": "t", "design": "create", "columns": []})
-    assert any("needs columns" in p for p in probs)
+    assert "Add at least one column, or copy them from a source table." in probs
+    assert not any("design create needs columns" in p for p in probs)
     probs = destinations.save(proj, "x", {"connection": "rep", "table": "t", "columns": COLS, "keys": ["nope"]})
     assert any("not a column" in p for p in probs)
     probs = destinations.save(proj, "x", {"connection": "rep", "table": "t",
@@ -247,3 +248,83 @@ def test_target_connect_goes_through_drivers_with_the_saved_secret(proj, monkeyp
     moved = dict(p.connections["ch"], host="other.example")
     targets.connect(p, "ch", moved)
     assert seen["password"] is None          # a saved secret never follows to another server
+
+
+# ---------------------------------------------------------------- copy the design from a source
+
+def _pk_source(proj):
+    con = sqlite3.connect(Path(proj.path) / "core.db")
+    con.execute("CREATE TABLE accounts (account_no VARCHAR(20) PRIMARY KEY, branch TEXT, opened_on DATE, "
+                "balance DECIMAL(18,2), " + "x" * 70 + " INTEGER)")
+    con.execute("INSERT INTO accounts VALUES ('A0001', 'kigali', '2026-01-02', 12.5, 3)")
+    con.commit()
+    con.close()
+
+
+def test_design_detail_from_a_table_carries_the_key_and_types(proj):
+    _pk_source(proj)
+    r = destinations.design_detail(proj, {"connection": "core", "table": "accounts"}, "postgres")
+    by = {c["name"]: c for c in r["columns"]}
+    assert r["keys"] == ["account_no"] and by["account_no"]["key"] is True and by["account_no"]["nullable"] is False
+    assert by["account_no"]["type"] == "string(20)" and by["account_no"]["source_type"] == "VARCHAR(20)"
+    assert by["balance"]["type"] == "decimal(18,2)" and by["balance"]["native"] == "numeric(18,2)"
+    assert r["table"] == "accounts" and r["id"] == "accounts" and r["kind"] == "postgres" and r["name_limit"] == 63
+    long = [c for c in r["checks"] if c["column"] == "x" * 70]
+    assert long and long[0]["level"] == "error" and "longer than 63" in long[0]["message"]
+    # the copied design saves and creates the table in another kind, key and all
+    cols = [{k: c[k] for k in ("name", "type", "nullable")} for c in r["columns"] if len(c["name"]) < 60]
+    sql = ddl.create_table_sql("postgres", "public.accounts", cols, r["keys"])
+    assert '"account_no" varchar(20) NOT NULL' in sql and '"balance" numeric(18,2)' in sql
+    assert 'PRIMARY KEY ("account_no")' in sql
+    ms = ddl.create_table_sql("sqlserver", "dbo.accounts", cols, r["keys"])
+    assert "[account_no] nvarchar(20) NOT NULL" in ms or "[account_no] varchar(20) NOT NULL" in ms
+    assert "PRIMARY KEY ([account_no])" in ms
+    assert destinations.save(proj, r["id"], {"connection": "rep", "table": r["table"], "design": "create",
+                                             "columns": cols, "keys": r["keys"]}) == []
+    p = config.Project.load(proj.path)
+    assert destinations.create(p, "accounts")["created"] is True
+    assert destinations.design_detail(p, {"connection": "core", "table": "accounts"}, "duckdb")["id"] == "accounts_2"
+
+
+def test_design_detail_duckdb_composite_key_into_sqlserver(proj):
+    con = duckdb.connect(str(Path(proj.path) / "wh.duckdb"))
+    con.execute("CREATE TABLE lines (stmt_id INTEGER, line_no INTEGER, memo VARCHAR, PRIMARY KEY (stmt_id, line_no))")
+    con.execute("INSERT INTO lines VALUES (1, 1, 'rent')")
+    con.close()
+    proj.save_connection("wh", {"kind": "duckdb", "path": "wh.duckdb", "role": "source"})
+    p = config.Project.load(proj.path)
+    r = destinations.design_detail(p, {"connection": "wh", "table": "lines"}, "sqlserver")
+    assert r["keys"] == ["stmt_id", "line_no"]
+    assert [c["native"] for c in r["columns"]][:2] == ["int", "int"]
+    sql = ddl.create_table_sql("sqlserver", "dbo.lines", [{"name": c["name"], "type": c["type"]} for c in r["columns"]], r["keys"])
+    assert "PRIMARY KEY ([stmt_id], [line_no])" in sql
+
+
+def test_design_detail_from_files_keeps_personal_flags(proj):
+    import shutil
+    land = Path(proj.path) / "land"
+    land.mkdir()
+    shutil.copy(Path(__file__).parent / "fixtures" / "bank" / "mt940_bare_yearturn.txt", land / "Statement 2026-11.txt")
+    proj.save_connection("land", {"kind": "folder", "path": "land", "role": "source"})
+    p = config.Project.load(proj.path)
+    r = destinations.design_detail(p, {"connection": "land", "files": "Statement 2026-11.txt", "format": "mt940"}, "duckdb")
+    by = {c["name"]: c for c in r["columns"]}
+    assert by["account"]["personal"] is True and not by["amount"]["personal"]
+    assert r["keys"] == [] and r["table"] == "statement_2026_11"
+    # into a file destination the checks run as duckdb and no native type is given
+    f = destinations.design_detail(p, {"connection": "land", "files": "Statement 2026-11.txt", "format": "mt940"}, "folder")
+    assert all(c["native"] is None for c in f["columns"])
+
+
+def test_suggest_table_name_fits_the_kind():
+    assert destinations.suggest_table_name("postgres", {"table": "main.Customer Accounts"}) == "customer_accounts"
+    assert destinations.suggest_table_name("postgres", {"table": "2026_loans"}) == "t_2026_loans"
+    assert len(destinations.suggest_table_name("postgres", {"table": "a" * 100})) == 63
+    assert len(destinations.suggest_table_name("sqlserver", {"table": "a" * 200})) == 128
+    assert destinations.suggest_table_name("duckdb", {"files": "in/*.csv"}) == "table"
+
+
+def test_design_detail_after_a_transform_has_the_names_the_mapping_sees(proj):
+    steps = [{"rename": {"segment": "customer_segment"}}, {"drop": ["balance"]}]
+    r = destinations.design_detail(proj, {"connection": "core", "table": "customers"}, "postgres", steps)
+    assert [c["name"] for c in r["columns"]] == ["customer_number", "customer_segment", "birth_year"]

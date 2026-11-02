@@ -730,3 +730,29 @@ table.t tr:hover .btn.sm:not(.primary):not(.danger), table.t .btn.sm:focus-visib
 /* a description under a name in a table: one line, cut to the column */
 table.t .desc { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 860px) { table.t .desc { max-width: calc(100vw - 250px); } }
+
+/* ---------------------------------------------------------------- destination design: start, copy */
+.choice.plain .ico { background: var(--raised); color: var(--ink-2); }
+.start-choices .choice { padding: 16px; gap: 8px; }
+.start-choices .choice .row { margin-top: auto; }
+.copy-dlg.dialog.wide { width: min(1000px, 100%); }
+.copy-browse { border: 1px solid var(--line); border-radius: var(--r); min-height: 340px; }
+.copy-browse .list button:last-child { border-bottom: 0; }
+.copy-right { min-width: 0; padding: 14px 16px; }
+.copy-browse .pf { padding: 8px 12px; border-top: 1px solid var(--line); }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+table.t.copy-cols th, table.t.copy-cols td { padding: 8px 10px; overflow-wrap: anywhere; vertical-align: top; }
+table.t.copy-cols .cb { width: 36px; }
+table.t.copy-cols input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); margin: 2px 0 0; }
+table.t.copy-cols tr.off td:not(.cb) { opacity: 0.5; }
+.tight-row { gap: 4px; margin-top: 4px; }
+.chk { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; line-height: 18px; margin-top: 4px; color: var(--ink-2); }
+.chk i { font-size: 14px; margin-top: 2px; flex: none; }
+.chk.warn i { color: var(--gold); } .chk.bad { color: var(--danger); } .chk.info i { color: var(--primary); }
+.like { border: 1px solid var(--primary); border-radius: var(--r); padding: 16px; background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 7%, transparent), transparent 70%), var(--surface); }
+.like h3 { font-size: 15px; }
+.src-n { display: none; }
+@media (max-width: 420px) {
+  table.t.copy-cols th:nth-child(3), table.t.copy-cols td:nth-child(3) { display: none; }
+  .src-n { display: block; }
+}

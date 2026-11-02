@@ -9,7 +9,7 @@ import { app, loadConnections, loadKinds, kindOf, kindLabel, isFileKind, startRu
 import { diagramView, diagramPreview } from "./diagram.js";
 import { mappingStep } from "./mapping.js";
 import { galleryView, pickFromGallery, openConnection, filesBrowser, tableBrowser, checksRow } from "./pages-sources.js";
-import { openDestination } from "./pages-destinations.js";
+import { openDestination, readDesign, designColumn } from "./pages-destinations.js";
 
 export async function pageJobs(args) {
   const [a, b, c] = args;
@@ -438,6 +438,87 @@ async function pageBuilder(name, stepArg) {
       T.destination = id; destDetail = null; mapper = null; loadDestDetail(); draw();
     } });
   }
+  // "New destination like this source": the source's columns, a name, a target connection and a
+  // table, prefilled; saved as design create, then picked, and on to the mapping (names match).
+  let like = null;
+  let matchNext = null;
+  const targetConns = () => conns.filter((c) => c.role === "target" || c.role === "both");
+  const hasSource = () => !!(S.connection && (S.table || S.files || S.query));
+  async function openLike() {
+    const t = targetConns();
+    const cur = destDetail && destDetail.connection && t.find((x) => x.id === destDetail.connection);
+    const first = cur || t.find((x) => !isFileKind(x.kind)) || t[0];
+    like = { connection: first ? first.id : "", id: "", table: "", idEdited: false, tableEdited: false, detail: "loading", err: null, busy: false };
+    draw();
+    await readLike();
+  }
+  async function readLike() {
+    if (!like) return;
+    const ask = like.connection;
+    like.detail = "loading"; draw();
+    let r;
+    try { r = await readDesign(srcBody(), like.connection, (job.transform || []).map(cleanStep).filter(Boolean)); } catch (e) { r = e; }
+    if (!like || ask !== like.connection) return;
+    like.detail = r;
+    if (!(r instanceof Error)) {
+      if (!like.tableEdited) like.table = r.table;
+      if (!like.idEdited) like.id = r.id;
+    }
+    draw();
+  }
+  async function createLike() {
+    const r = like.detail;
+    if (!r || r instanceof Error || r === "loading") return;
+    const c = conn(like.connection);
+    if (!like.id) { like.err = ["Give the destination a name."]; draw(); return; }
+    if (!c) { like.err = ["Pick a connection."]; draw(); return; }
+    const spec = { connection: like.connection, columns: r.columns.map(designColumn) };
+    if (isFileKind(c.kind)) { spec.file = `${like.table || like.id}.{format}`; spec.format = "parquet"; }
+    else { spec.table = like.table; spec.design = "create"; if (r.keys && r.keys.length) spec.keys = r.keys; }
+    like.busy = true; like.err = null; draw();
+    try {
+      await api(`/destinations/${enc(like.id)}`, { method: "PUT", body: spec });
+    } catch (e) {
+      like.busy = false;
+      like.err = ((e.data && e.data.problems) || [e.message]).map((x) => (typeof x === "string" ? x : `${x.column ? `${x.column}: ` : ""}${x.message}`));
+      draw(); return;
+    }
+    toast(`${like.id} saved`);
+    dests = await api("/destinations").catch(() => dests);
+    T.destination = like.id; delete T.key; delete T.slice_column;
+    job.mapping = { ...(job.mapping || {}), columns: {} };
+    matchNext = like.id;
+    like = null; destDetail = null; mapper = null;
+    loadDestDetail();
+    go("mapping");
+  }
+  function likeBlock() {
+    const t = targetConns();
+    const r = like.detail;
+    const c = conn(like.connection);
+    const file = !!c && isFileKind(c.kind);
+    const problems = r && !(r instanceof Error) && r !== "loading" ? (r.checks || []).filter((x) => x.level !== "info") : [];
+    return h("section", { class: "like stack", "aria-label": "New destination like this source" },
+      h("div", { class: "row nowrap" }, icon("copy"), h("h3", { class: "grow" }, "New destination like this source"),
+        h("button", { class: "btn ghost sm icon", "aria-label": "Close", onclick: () => { like = null; draw(); } }, icon("x"))),
+      h("div", { class: "grid3" },
+        lab("Name", h("input", { class: "input mono", value: like.id, autocomplete: "off", oninput: (e) => { like.id = e.target.value; like.idEdited = true; } })),
+        lab("Connection", h("select", { class: "input", onchange: (e) => { like.connection = e.target.value; readLike(); } },
+          t.length ? null : h("option", { value: "" }, "No target connections yet"),
+          t.map((x) => h("option", { value: x.id, selected: x.id === like.connection }, `${x.id} (${kindLabel(x.kind) || x.kind})`)))),
+        lab(file ? "File name" : "Table", h("input", { class: "input mono", value: like.table, oninput: (e) => { like.table = e.target.value; like.tableEdited = true; } }), file ? "Saved as Parquet." : null)),
+      r === "loading" ? h("div", { class: "sk", style: "height:36px" })
+        : r instanceof Error ? h("div", { class: "err" }, r.message)
+          : h("div", { class: "stack tight" },
+            h("div", { class: "small muted" }, `${r.columns.length} columns, same names and types as the source`, r.keys && r.keys.length ? `, key ${r.keys.join(", ")}` : "", "."),
+            problems.map((x) => h("div", { class: x.level === "error" ? "err" : "small", style: x.level === "warn" ? "color:var(--gold)" : null },
+              icon(x.level === "error" ? "x-circle" : "warning"), " ", x.column ? `${x.column}: ` : "", x.message))),
+      like.err ? h("div", { class: "stack tight", role: "alert" }, like.err.map((x) => h("div", { class: "err" }, x))) : null,
+      h("div", { class: "row" }, h("span", { class: "grow" }),
+        h("button", { class: "btn ghost", onclick: () => { like = null; draw(); } }, "Cancel"),
+        h("button", { class: "btn primary", disabled: like.busy || !r || r === "loading" || r instanceof Error || !t.length, onclick: createLike }, icon("check"), "Create and map")));
+  }
+
   function destinationStep() {
     if (inlineTarget && !T.destination) {
       return [h("div", { class: "banner info" }, icon("info"), h("div", { class: "grow small" }, `Writes to ${T.connection}: ${T.table || T.file || T.format || ""}. This older form is kept as it is.`)),
@@ -452,7 +533,9 @@ async function pageBuilder(name, stepArg) {
         h("div", { class: "grow", style: "min-width:220px" }, lab("Destination", h("select", { class: "input", onchange: (e) => { T.destination = e.target.value; delete T.key; delete T.slice_column; destDetail = null; mapper = null; draw(); } },
           h("option", { value: "" }, dests.length ? "Pick one" : "No destinations yet"),
           dests.map((x) => h("option", { value: x.id, selected: x.id === T.destination }, `${x.id} (${x.connection})`))))),
-        h("button", { class: "btn", onclick: createDestination }, icon("plus"), "Create one")),
+        h("button", { class: "btn", onclick: createDestination }, icon("plus"), "Create one"),
+        hasSource() && !like ? h("button", { class: "btn", onclick: openLike }, icon("copy"), "New destination like this source") : null),
+      like ? likeBlock() : null,
       dd && dd.loading ? h("div", { class: "sk", style: "height:60px" }) : dd && dd.error ? h("div", { class: "err" }, dd.error.message)
         : dd ? h("div", { class: "kv" },
           h("div", {}, h("span", { class: "k" }, "Connection"), h("span", { class: "v" }, dd.connection || "-")),
@@ -475,7 +558,8 @@ async function pageBuilder(name, stepArg) {
     if (!dd || dd.loading) { loadDestDetail(); return [h("div", { class: "sk", style: "height:240px" })]; }
     if (!(dd.columns || []).length) return [empty("arrows-left-right", "This destination takes the columns as they come.")];
     if (!mapper || mapperFor !== T.destination) {
-      mapper = mappingStep({ job, destCols: dd.columns, previewName: () => job.name || name, payload, onChange: drawRail });
+      mapper = mappingStep({ job, destCols: dd.columns, previewName: () => job.name || name, payload, onChange: drawRail, autoMatch: matchNext === T.destination });
+      matchNext = null;
       mapperFor = T.destination;
     }
     return [mapper.el];
