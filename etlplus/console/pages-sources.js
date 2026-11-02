@@ -1,10 +1,10 @@
 // Sources: saved connections (cards), the Add source gallery, the connection drawer,
 // and the file and table browsers.
 import {
-  h, put, icon, pill, api, apiPage, enc, fmt, head, panel, empty, toast, pager, pageState, sect, drawer, dialog, confirmBox,
+  h, put, icon, line, pill, api, apiPage, enc, fmt, head, panel, empty, emptyState, toast, pager, pageState, sect, drawer, dialog, confirmBox,
   copyBtn, CARD_SIZES, kindIcon, kindStatus, withSecrets, parseOptions, optionsText, clone, dataGrid, inlineError, store, debounce,
 } from "./ui.js";
-import { app, loadConnections, loadKinds, kindOf, kindLabel, isFileKind } from "./state.js";
+import { app, loadConnections, loadKinds, kindOf, kindLabel, isFileKind, stepsStrip } from "./state.js";
 
 const GROUP_ORDER = ["Databases", "Files", "Bank files", "Remote locations"];
 const GROUP_ICON = { Databases: "database", Files: "file-text", "Bank files": "bank", "Remote locations": "cloud" };
@@ -16,7 +16,7 @@ export async function pageSources(args) {
   const tabs = h("div", { class: "tabs", role: "tablist" },
     h("a", { href: "#/sources", role: "tab", class: first === "add" ? "" : "on", "aria-selected": String(first !== "add") }, "Saved", pill(saved.length)),
     h("a", { href: "#/sources/add", role: "tab", class: first === "add" ? "on" : "", "aria-selected": String(first === "add") }, "Gallery"));
-  const top = head("Sources", null, first === "add" ? null : h("a", { class: "btn primary", href: "#/sources/add" }, icon("plus"), "Add source"));
+  const top = head("Sources", "Where your jobs read their data.", first === "add" ? null : h("a", { class: "btn primary", href: "#/sources/add" }, line("plus", 16), "Add source"));
   if (first === "add") return [top, tabs, await galleryView({ onPick: pickFromGallery })];
   if (first) {
     const c = saved.find((x) => x.id === first);
@@ -42,7 +42,10 @@ function savedGrid() {
     let page;
     try { page = await apiPage("/connections", st); } catch (e) { put(box, inlineError(e)); return; }
     if (!page.total) {
-      put(box, panel("Connections", null, empty("plugs", "No connections yet.", h("a", { class: "btn primary", href: "#/sources/add" }, icon("plus"), "Add source"))));
+      const steps = await stepsStrip();
+      put(box, emptyState({ art: "sources", title: "No sources yet",
+        text: "A source is where a job reads its data, such as a database or a folder of files. Pick one from the gallery.",
+        actions: [h("a", { class: "btn primary", href: "#/sources/add?setup=1" }, line("plus", 16), "Add source")] }), steps);
       return;
     }
     put(box, h("div", { class: "cards" }, page.items.map(connCard)), page.total > 12 ? pager(st, page.total, draw) : null);

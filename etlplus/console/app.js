@@ -1,7 +1,7 @@
 // etl+ console: the shell and the router. Every change goes through /api and lands in the
 // project's own files, so the console and the command line always agree.
-import { h, put, icon, api, enc, skeleton, errorBox, stopTimers, closeOverlays } from "./ui.js";
-import { app, loadStart, refreshSide, drawProjectBadge } from "./state.js";
+import { h, put, line, api, enc, skeleton, errorBox, stopTimers, closeOverlays } from "./ui.js";
+import { app, loadStart, refreshSide, drawProjectBadge, projectInfo, switchProject, KIND_WORD } from "./state.js";
 import { pageChooser, pageOverview } from "./pages-home.js";
 import { pageSources } from "./pages-sources.js";
 import { pageDestinations } from "./pages-destinations.js";
@@ -78,7 +78,10 @@ window.addEventListener("etl:choose", async () => {
 const themeBtn = document.getElementById("theme");
 // dark is the default; light only when chosen
 function isDark() { return document.documentElement.dataset.theme !== "light"; }
-function themeIcon() { put(themeBtn, icon(isDark() ? "sun" : "moon")); }
+function themeIcon() {
+  put(themeBtn, line(isDark() ? "sun" : "moon"));
+  themeBtn.setAttribute("aria-label", isDark() ? "Switch to light theme" : "Switch to dark theme");
+}
 themeBtn.addEventListener("click", () => {
   const next = isDark() ? "light" : "dark";
   document.documentElement.dataset.theme = next;
@@ -108,9 +111,9 @@ async function readJump() {
   const [jobs, conns, dests] = await Promise.allSettled([api("/jobs"), api("/connections"), api("/destinations")]);
   const list = (r) => (r.status === "fulfilled" && Array.isArray(r.value) ? r.value : []);
   jumpItems = [
-    ...list(jobs).map((j) => ({ label: j.name, kind: "Job", ic: "flow-arrow", href: `#/jobs/${enc(j.name)}` })),
-    ...list(conns).map((c) => ({ label: c.id, kind: "Source", ic: "plugs", href: `#/sources/${enc(c.id)}` })),
-    ...list(dests).map((x) => ({ label: x.id, kind: "Destination", ic: "database", href: `#/destinations/${enc(x.id)}` })),
+    ...list(jobs).map((j) => ({ label: j.name, kind: "Job", art: "jobs", href: `#/jobs/${enc(j.name)}` })),
+    ...list(conns).map((c) => ({ label: c.id, kind: "Source", art: "sources", href: `#/sources/${enc(c.id)}` })),
+    ...list(dests).map((x) => ({ label: x.id, kind: "Destination", art: "destinations", href: `#/destinations/${enc(x.id)}` })),
   ];
   return jumpItems;
 }
@@ -126,7 +129,7 @@ async function drawJump() {
   jumpSel = Math.min(jumpSel, Math.max(0, items.length - 1));
   put(jumpBox, items.length ? items.map((x, i) => h("a", { href: x.href, role: "option", class: i === jumpSel ? "on" : "", "aria-selected": String(i === jumpSel),
     onmousedown: (e) => e.preventDefault(), onclick: () => { $q.value = ""; closeJump(); } },
-    icon(x.ic), h("span", {}, x.label), h("span", { class: "faint" }, x.kind))) : h("div", { class: "none" }, "Nothing matches."));
+    line(x.art, 16), h("span", {}, x.label), h("span", { class: "faint" }, x.kind))) : h("div", { class: "none" }, "Nothing matches."));
   jumpBox.classList.remove("hidden");
   $q.setAttribute("aria-expanded", "true");
 }
@@ -151,6 +154,85 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
   $q.focus();
 });
+
+// a project switch: the lists the search box read belong to the other project
+window.addEventListener("etl:project", () => { jumpItems = null; jumpLoad = null; });
+
+// ------------------------------------------------------------------ project menu (top bar scope, side foot name)
+// Demo data or My data. POST /api/start { choice } makes one active; the other is kept as it is.
+const $scope = document.getElementById("scope");
+const $projName = document.getElementById("project-name");
+let menu = null;
+function closeMenu(focusBack = false) {
+  if (!menu) return;
+  const { el, trigger, onDoc } = menu;
+  menu = null;
+  el.remove();
+  document.removeEventListener("mousedown", onDoc, true);
+  trigger.setAttribute("aria-expanded", "false");
+  if (focusBack) trigger.focus();
+}
+function openMenu(trigger) {
+  if (menu) { const same = menu.trigger === trigger; closeMenu(); if (same) return; }
+  const st = app.start || {};
+  const list = Object.fromEntries((st.projects || []).map((p) => [p.id, p]));
+  const busy = h("div", { class: "mnote", role: "status" });
+  const items = ["real", "demo"].map((id) => {
+    const p = list[id] || {};
+    const on = st.active === id;
+    const what = p.exists ? `${p.jobs ?? 0} ${p.jobs === 1 ? "job" : "jobs"}, ${p.connections ?? 0} ${p.connections === 1 ? "source" : "sources"}`
+      : id === "demo" ? "Made-up files and ready jobs" : "Starts empty";
+    return h("button", { type: "button", role: "menuitemradio", "aria-checked": String(on), class: on ? "on" : "",
+      onclick: async (e) => {
+        if (on) { closeMenu(true); return; }
+        e.currentTarget.disabled = true;
+        put(busy, h("span", { class: "spin", "aria-hidden": "true" }), id === "demo" && !p.exists ? "Creating the demo..." : "Switching...");
+        try {
+          await switchProject(id);
+          closeMenu();
+          if (location.hash.startsWith("#/overview") || location.hash === "" || location.hash === "#/") route(); else location.hash = "#/overview";
+        } catch (err) { put(busy, h("span", { class: "err" }, err.message)); e.currentTarget.disabled = false; }
+      } },
+    h("span", { class: "mi" }, h("span", { class: "ml" }, KIND_WORD[id]), h("span", { class: "cs" }, what)),
+    on ? line("check", 16, "mk") : null);
+  });
+  const el = h("div", { class: "menu", id: "scope-menu", role: "menu", "aria-label": "Data" },
+    ...items, busy,
+    h("div", { class: "msep" }),
+    h("a", { href: "#/settings", role: "menuitem", class: "mlink", onclick: () => closeMenu() }, "Project settings"),
+    h("p", { class: "cs mfoot" }, "Both are kept when you switch."));
+  el.addEventListener("keydown", (e) => {
+    const opts = [...el.querySelectorAll("button, a")];
+    const i = opts.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); closeMenu(true); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      opts[(i + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length].focus();
+    } else if (e.key === "Tab") closeMenu();
+  });
+  document.body.append(el);
+  const r = trigger.getBoundingClientRect();
+  const w = el.offsetWidth;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  // under the trigger, or above it when it sits low (the side foot)
+  if (r.bottom + el.offsetHeight + 8 > window.innerHeight) el.style.top = `${Math.max(8, r.top - el.offsetHeight - 6)}px`;
+  else el.style.top = `${r.bottom + 6}px`;
+  el.style.left = `${left}px`;
+  const onDoc = (e) => { if (!el.contains(e.target) && !trigger.contains(e.target)) closeMenu(); };
+  document.addEventListener("mousedown", onDoc, true);
+  trigger.setAttribute("aria-expanded", "true");
+  menu = { el, trigger, onDoc };
+  const first = el.querySelector("button.on") || el.querySelector("button");
+  if (first) first.focus();
+}
+$scope.addEventListener("click", () => { if (!projectInfo().fixed) openMenu($scope); });
+$projName.addEventListener("click", (e) => {
+  if (projectInfo().fixed) return;
+  e.preventDefault();
+  openMenu($projName);
+});
+window.addEventListener("hashchange", () => closeMenu());
+window.addEventListener("resize", () => closeMenu());
 
 (async () => {
   await route();

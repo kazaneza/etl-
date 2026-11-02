@@ -1,5 +1,5 @@
 // Shared state for the console pages: the project choice, cached lists and run actions.
-import { api, enc, toast, put, h, icon } from "./ui.js";
+import { api, enc, toast, put, h, line, setupSteps } from "./ui.js";
 
 export const app = { start: null, overview: null, connections: null, kinds: null, sideTimer: null };
 
@@ -65,10 +65,10 @@ export async function refreshSide() {
   } catch (e) { return null; }
 }
 
-// the top bar tag (Demo data in gold, My data in teal) and the side foot's project line
-export function drawProjectBadge() {
-  const el = document.getElementById("project-badge");
-  if (!el) return;
+// The scope button in the top bar (the active project kind: My data or Demo data) and the side
+// foot's project name. Both open the project menu; a server with one project shows its kind only.
+export const KIND_WORD = { demo: "Demo data", real: "My data" };
+export function projectInfo() {
   const st = app.start || {};
   const o = app.overview || {};
   const proj = o.project && typeof o.project === "object" ? o.project : null;
@@ -76,22 +76,50 @@ export function drawProjectBadge() {
   // the project's own name first (from /start, so it is right before /overview answers), then its kind
   const listed = (st.projects || []).find((p) => p.id === st.active) || null;
   const name = (listed && listed.name) || (proj ? proj.name || proj.id : o.name || o.project) || null;
-  const nameEl = document.getElementById("project-name");
-  const subEl = document.getElementById("project-sub");
-  if (kind === "demo" || kind === "real") {
-    const word = kind === "demo" ? "Demo data" : "My data";
-    el.className = `badge proj ${kind === "demo" ? "warn" : "info"}`;
-    put(el, h("span", { class: "proj-text" }, word));
-    el.setAttribute("aria-label", `Project: ${word}. Open settings`);
-    if (nameEl) nameEl.textContent = name || (kind === "demo" ? "Demo project" : "My project");
-    if (subEl) subEl.textContent = word;
-  } else {
-    el.className = "badge proj";
-    put(el, icon("folder-simple"), h("span", { class: "proj-text" }, name || "Project"));
-    el.setAttribute("aria-label", `Project ${name || ""}`);
-    if (nameEl) nameEl.textContent = name || "Project";
-    if (subEl) subEl.textContent = "One project";
+  return { kind, name, fixed: st.mode === "fixed" };
+}
+export function drawProjectBadge() {
+  const { kind, name, fixed } = projectInfo();
+  const scope = document.getElementById("scope");
+  const word = KIND_WORD[kind] || name || "Project";
+  if (scope) {
+    put(scope, line("destinations", 16), h("span", { class: "sw" }, word), fixed ? null : line("chevron", 14));
+    scope.classList.toggle("demo", kind === "demo");
+    scope.classList.toggle("fixed", fixed);
+    scope.setAttribute("aria-label", fixed ? `Data: ${word}` : `Data: ${word}. Switch`);
   }
+  const nameEl = document.getElementById("project-name");
+  if (nameEl) {
+    nameEl.textContent = name || (kind === "demo" ? "Demo project" : kind === "real" ? "My project" : "Project");
+    nameEl.setAttribute("aria-label", `Project ${nameEl.textContent}. ${fixed ? "Open settings" : "Switch project"}`);
+    if (fixed) nameEl.removeAttribute("aria-haspopup"); else nameEl.setAttribute("aria-haspopup", "menu");
+  }
+}
+
+// switch between demo and my data; both projects are kept. POST /api/start { choice } makes the
+// chosen one active (and creates it the first time).
+export async function switchProject(id) {
+  const st = await api("/start", { method: "POST", body: { choice: id, run_jobs: true } });
+  app.start = st;
+  app.connections = null;
+  app.overview = null;
+  window.dispatchEvent(new CustomEvent("etl:project"));
+  drawProjectBadge();
+  toast(`Now on ${KIND_WORD[id] || id}`);
+  refreshSide();
+  return st;
+}
+
+// what the project has, for the Getting set up strip: GET /api/setup, else the overview's copy
+export async function loadSetup() {
+  try { return await api("/setup"); } catch (e) {
+    const o = app.overview || await refreshSide();
+    return (o && o.setup) || null;
+  }
+}
+export async function stepsStrip() {
+  const s = await loadSetup();
+  return s ? setupSteps(s) : null;
 }
 
 export async function startRun(name, steps, extra = {}) {

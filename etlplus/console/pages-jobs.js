@@ -1,11 +1,11 @@
 // Jobs: the paginated list, the job detail (animated diagram, last runs) and the builder
 // wizard (Source, Transform, Destination, Mapping, Schedule and save).
 import {
-  h, put, icon, pill, api, apiPage, enc, fmt, head, panel, empty, toast, pager, pageState, sect, drawer, dialog, confirmBox,
+  h, put, icon, line, pill, api, apiPage, enc, fmt, head, panel, empty, emptyState, toast, pager, pageState, sect, drawer, dialog, confirmBox,
   statusBadge, statusCell, dataGrid, inlineError, lab, seg, inp, clone, cleanObj, describeCron, every, hashQuery,
   kindIcon, rowsOf, runMs, store,
 } from "./ui.js";
-import { app, loadConnections, loadKinds, kindOf, kindLabel, isFileKind, startRun, refreshSide, sourceText, targetText } from "./state.js";
+import { app, loadConnections, loadKinds, kindOf, kindLabel, isFileKind, startRun, refreshSide, sourceText, targetText, stepsStrip } from "./state.js";
 import { diagramView, diagramPreview } from "./diagram.js";
 import { mappingStep } from "./mapping.js";
 import { galleryView, pickFromGallery, openConnection, filesBrowser, tableBrowser, checksRow } from "./pages-sources.js";
@@ -22,6 +22,7 @@ export async function pageJobs(args) {
 // ------------------------------------------------------------------ list
 function pageList() {
   const box = h("div");
+  const wrap = h("div", { class: "stack" });
   const count = pill("-");
   const st = pageState("jobs", 25);
   async function draw() {
@@ -29,7 +30,14 @@ function pageList() {
     let page;
     try { page = await apiPage("/jobs", st); } catch (e) { put(box, h("div", { class: "pb" }, inlineError(e))); return; }
     count.textContent = fmt.int(page.total);
-    if (!page.total) { put(box, empty("flow-arrow", "No jobs yet.", h("a", { class: "btn primary", href: "#/jobs/new" }, icon("plus"), "New job"))); return; }
+    if (!page.total) {
+      const steps = await stepsStrip();
+      put(wrap, emptyState({ art: "jobs", title: "No jobs yet",
+        text: "A job reads from a source, maps the columns and writes to a destination, by hand or on a schedule.",
+        actions: [h("a", { class: "btn primary", href: "#/jobs/new?setup=1" }, line("plus", 16), "New job")] }), steps);
+      return;
+    }
+    if (!listPanel.isConnected) put(wrap, listPanel);
     put(box, h("div", { class: "scroll-x" }, h("table", { class: "t" },
       h("thead", {}, h("tr", {}, h("th", { style: "width:36px" }, h("span", { class: "sr" }, "Status")), h("th", {}, "Job"), h("th", { class: "hide-sm" }, "From"), h("th", { class: "hide-sm" }, "To"),
         h("th", {}, "Last run"), h("th", { class: "hide-sm" }, "Next run"), h("th", {}))),
@@ -50,8 +58,10 @@ function pageList() {
     page.total > 10 ? h("div", { class: "pf" }, pager(st, page.total, draw)) : null);
     if (page.items.some((j) => j.last_run && j.last_run.status === "running") && !st.polling) { st.polling = true; every(3000, () => { if (box.isConnected) draw(); }); }
   }
+  const listPanel = panel(h("div", { class: "row" }, h("h2", {}, "All jobs"), count), null, box);
+  put(wrap, listPanel);
   draw();
-  return [head("Jobs", null, h("a", { class: "btn primary", href: "#/jobs/new" }, icon("plus"), "New job")), panel(h("div", { class: "row" }, h("h2", {}, "All jobs"), count), null, box)];
+  return [head("Jobs", "Each job moves data from a source to a destination.", h("a", { class: "btn primary", href: "#/jobs/new" }, line("plus", 16), "New job")), wrap];
 }
 
 // ------------------------------------------------------------------ job detail

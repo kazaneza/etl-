@@ -29,40 +29,38 @@
         </div>
       </a>
       <nav class="nav" id="nav" aria-label="Main">
-        <a href="#/overview" data-page="overview"><i class="ph ph-squares-four" aria-hidden="true"></i><span>Overview</span></a>
+        <a href="#/overview" data-page="overview"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5"></rect></svg><span>Overview</span></a>
         <div class="grp">Build</div>
-        <a href="#/sources" data-page="sources"><i class="ph ph-plugs" aria-hidden="true"></i><span>Sources</span></a>
-        <a href="#/destinations" data-page="destinations"><i class="ph ph-database" aria-hidden="true"></i><span>Destinations</span></a>
-        <a href="#/jobs" data-page="jobs"><i class="ph ph-flow-arrow" aria-hidden="true"></i><span>Jobs</span></a>
+        <a href="#/sources" data-page="sources"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 3v5"></path><path d="M15 3v5"></path><path d="M6 8h12v4a6 6 0 0 1-12 0z"></path><path d="M12 18v3"></path></svg><span>Sources</span></a>
+        <a href="#/destinations" data-page="destinations"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="5.5" rx="8" ry="3"></ellipse><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"></path><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg><span>Destinations</span></a>
+        <a href="#/jobs" data-page="jobs"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="6" r="2"></circle><path d="M8 18h5a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h5"></path></svg><span>Jobs</span></a>
         <div class="grp">Operate</div>
-        <a href="#/runs" data-page="runs"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i><span>Runs</span></a>
-        <a href="#/stage" data-page="stage"><i class="ph ph-stack" aria-hidden="true"></i><span>Stage</span></a>
+        <a href="#/runs" data-page="runs"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v4h4"></path><path d="M12 8v4l3 2"></path></svg><span>Runs</span></a>
+        <a href="#/stage" data-page="stage"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 3 9 5-9 5-9-5z"></path><path d="m3 13 9 5 9-5"></path></svg><span>Stage</span></a>
         <div class="grp">Setup</div>
-        <a href="#/layouts" data-page="layouts"><i class="ph ph-rows" aria-hidden="true"></i><span>Layouts</span></a>
-        <a href="#/settings" data-page="settings"><i class="ph ph-gear-six" aria-hidden="true"></i><span>Settings</span></a>
+        <a href="#/layouts" data-page="layouts"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="6" rx="1.5"></rect><rect x="4" y="14" width="16" height="6" rx="1.5"></rect></svg><span>Layouts</span></a>
+        <a href="#/settings" data-page="settings"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></svg><span>Settings</span></a>
       </nav>
       <div class="side-foot">
         <div id="running"></div>
         <div class="client">
-          <div class="grow">
+          <div class="grow proj">
+            <span class="cs">Project</span>
             <a class="cname" id="project-name" href="#/settings">Project</a>
-            <div class="csub" id="project-sub"></div>
           </div>
-          <button class="btn ghost icon" id="theme" aria-label="Switch light or dark"><i class="ph ph-sun" aria-hidden="true"></i></button>
+          <button class="btn quiet icon" id="theme" aria-label="Switch light or dark"></button>
         </div>
       </div>
     </aside>
     <main class="main" id="main">
       <div class="top">
         <label class="search" id="search">
-          <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+          <svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
           <span class="sr">Find a job or source</span>
           <input type="search" id="search-q" placeholder="Find a job or source" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="jump">
           <span class="kbd" aria-hidden="true">/</span>
         </label>
-        <div class="topr">
-          <a id="project-badge" class="badge proj hidden" href="#/settings"></a>
-        </div>
+        <button class="scope" id="scope" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="scope-menu"><span class="sw">Data</span></button>
       </div>
       <div class="page" id="page" aria-live="polite"></div>
     </main>

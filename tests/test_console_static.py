@@ -31,9 +31,42 @@ def test_console_is_flat_modules():
 
 def test_nav_has_the_v2_pages_and_icons():
     html = read(CONSOLE / "index.html")
-    nav = re.findall(r'data-page="([a-z]+)"><i class="ph ph-([a-z-]+)"', html)
-    assert nav == [("overview", "squares-four"), ("sources", "plugs"), ("destinations", "database"), ("jobs", "flow-arrow"),
-                   ("runs", "clock-counter-clockwise"), ("stage", "stack"), ("layouts", "rows"), ("settings", "gear-six")]
+    # the design's own line icons, inline: 18 px, stroke 1.6, the same shapes as ui.js LINES
+    nav = re.findall(r'data-page="([a-z]+)"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" '
+                     r'stroke="currentColor" stroke-width="1.6"[^>]*>(.*?)</svg><span>([A-Za-z]+)</span>', html)
+    assert [(p, label) for p, _, label in nav] == [
+        ("overview", "Overview"), ("sources", "Sources"), ("destinations", "Destinations"), ("jobs", "Jobs"),
+        ("runs", "Runs"), ("stage", "Stage"), ("layouts", "Layouts"), ("settings", "Settings")]
+    ui = read(CONSOLE / "ui.js")
+    for page, shapes, _ in nav:
+        for d in re.findall(r' d="([^"]+)"', shapes):
+            assert f'd: "{d}"' in ui, (page, d)
+    assert re.findall(r'<div class="grp">([A-Za-z]+)</div>', html) == ["Build", "Operate", "Setup"]
+    assert 'class="ph ' not in html.split('id="nav"')[1].split("</nav>")[0]
+
+
+def test_top_bar_scope_replaces_the_project_tag():
+    html = read(CONSOLE / "index.html")
+    assert 'id="project-badge"' not in html
+    assert 'id="scope"' in html and 'aria-haspopup="menu"' in html
+    assert 'placeholder="Find a job or source"' in html
+    state = read(CONSOLE / "state.js")
+    # the switch keeps both projects: it only makes the chosen one active through /start
+    assert 'api("/start", { method: "POST", body: { choice: id' in state
+    assert '"Demo data"' in state and '"My data"' in state
+
+
+def test_empty_state_and_getting_set_up():
+    ui = read(CONSOLE / "ui.js")
+    for words in ('"Add a source"', '"Add a destination"', '"Create a job"', '"Getting set up"'):
+        assert words in ui, words
+    for page, title in (("pages-sources.js", "No sources yet"), ("pages-destinations.js", "No destinations yet"),
+                        ("pages-jobs.js", "No jobs yet"), ("pages-runs.js", "No runs yet"), ("pages-runs.js", "Nothing staged yet"),
+                        ("layouts.js", "No layouts yet"), ("pages-home.js", "Nothing here yet")):
+        assert f'title: "{title}"' in read(CONSOLE / page), (page, title)
+    for page in ("pages-sources.js", "pages-destinations.js", "pages-jobs.js"):
+        assert "stepsStrip()" in read(CONSOLE / page), page
+    assert "setupSteps(o.setup)" in read(CONSOLE / "pages-home.js")
 
 
 # ------------------------------------------------------------------ no remote resources

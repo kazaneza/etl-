@@ -1,10 +1,10 @@
 // Destinations: the grid of cards, the editor drawer (existing table or a column design,
 // DDL preview, create), the test dialog and the paginated preview.
 import {
-  h, put, icon, api, apiPage, enc, head, panel, empty, toast, pager, pageState, sect, drawer, dialog, confirmBox,
+  h, put, icon, line, api, apiPage, enc, head, panel, empty, emptyState, toast, pager, pageState, sect, drawer, dialog, confirmBox,
   kindIcon, CARD_SIZES, clone, dataGrid, inlineError, lab, seg, hashQuery,
 } from "./ui.js";
-import { loadConnections, loadKinds, kindOf, kindLabel, isFileKind } from "./state.js";
+import { loadConnections, loadKinds, kindOf, kindLabel, isFileKind, stepsStrip } from "./state.js";
 import { testResult, tableBrowser } from "./pages-sources.js";
 
 export const GENERIC_TYPES = ["string", "text", "integer", "bigint", "decimal", "double", "boolean", "date", "time", "timestamp", "timestamptz", "binary", "json"];
@@ -26,7 +26,7 @@ export function typeText(x) {
 export async function pageDestinations(args) {
   const [id, sub] = args;
   await loadKinds();
-  const top = head("Destinations", null, h("a", { class: "btn primary", href: "#/destinations/new" }, icon("plus"), "New destination"));
+  const top = head("Destinations", "Where your jobs write their results.", h("a", { class: "btn primary", href: "#/destinations/new" }, line("plus", 16), "New destination"));
   if (id && sub === "preview") return [top, h("a", { class: "btn ghost sm", href: "#/destinations", style: "align-self:flex-start" }, icon("arrow-left"), "All destinations"), previewPanel(id)];
   const grid = gridView();
   if (id === "new") queueMicrotask(() => openDestination({ onClose: () => { if (location.hash.startsWith("#/destinations/new")) location.hash = "#/destinations"; } }));
@@ -49,7 +49,10 @@ function gridView() {
     let page;
     try { page = await apiPage("/destinations", st); } catch (e) { put(box, inlineError(e)); return; }
     if (!page.total) {
-      put(box, panel("Destinations", null, empty("database", "No destinations yet.", h("a", { class: "btn primary", href: "#/destinations/new" }, icon("plus"), "New destination"))));
+      const steps = await stepsStrip();
+      put(box, emptyState({ art: "destinations", title: "No destinations yet",
+        text: "A destination is where a job delivers its data, such as a database table or a folder. Add one before you create your first job.",
+        actions: [h("a", { class: "btn primary", href: "#/destinations/new?setup=1" }, line("plus", 16), "New destination")] }), steps);
       return;
     }
     put(box, h("div", { class: "cards" }, page.items.map(destCard)), page.total > 12 ? pager(st, page.total, draw) : null);

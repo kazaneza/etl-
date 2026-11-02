@@ -41,7 +41,44 @@ function addKids(el, kids) {
 export function put(el, ...kids) {
   el.replaceChildren(...kids.flat(Infinity).filter((k) => k !== null && k !== undefined && k !== false && k !== ""));
 }
-export const icon = (name, cls = "") => h("i", { class: `ph ph-${name} ${cls}`.trim(), "aria-hidden": "true" });
+// Phosphor, except where the design has its own line icon for the same symbol: then that icon,
+// sized 1em inside the same <i>, so every rule that sizes an icon still applies
+export function icon(name, cls = "") {
+  const same = SAME[name];
+  if (same) return h("i", { class: `lic ${cls}`.trim(), "aria-hidden": "true" }, line(same, "1em"));
+  return h("i", { class: `ph ph-${name} ${cls}`.trim(), "aria-hidden": "true" });
+}
+
+// The design's own line icons (24 grid, stroke 1.6), copied from the owner's mockup. They stand in
+// for Phosphor wherever the same symbol appears: the nav pages, search, plus, chevron, sun and moon.
+const LINES = {
+  overview: [["rect", { x: 4, y: 4, width: 7, height: 7, rx: 1.5 }], ["rect", { x: 13, y: 4, width: 7, height: 7, rx: 1.5 }], ["rect", { x: 4, y: 13, width: 7, height: 7, rx: 1.5 }], ["rect", { x: 13, y: 13, width: 7, height: 7, rx: 1.5 }]],
+  sources: [["path", { d: "M9 3v5" }], ["path", { d: "M15 3v5" }], ["path", { d: "M6 8h12v4a6 6 0 0 1-12 0z" }], ["path", { d: "M12 18v3" }]],
+  destinations: [["ellipse", { cx: 12, cy: 5.5, rx: 8, ry: 3 }], ["path", { d: "M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13" }], ["path", { d: "M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" }]],
+  jobs: [["circle", { cx: 6, cy: 18, r: 2 }], ["circle", { cx: 18, cy: 6, r: 2 }], ["path", { d: "M8 18h5a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h5" }]],
+  runs: [["path", { d: "M3 12a9 9 0 1 0 3-6.7" }], ["path", { d: "M3 4v4h4" }], ["path", { d: "M12 8v4l3 2" }]],
+  stage: [["path", { d: "m12 3 9 5-9 5-9-5z" }], ["path", { d: "m3 13 9 5 9-5" }]],
+  layouts: [["rect", { x: 4, y: 4, width: 16, height: 6, rx: 1.5 }], ["rect", { x: 4, y: 14, width: 16, height: 6, rx: 1.5 }]],
+  settings: [["circle", { cx: 12, cy: 12, r: 3 }], ["path", { d: "M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" }]],
+  search: [["circle", { cx: 11, cy: 11, r: 7 }], ["path", { d: "m20 20-3.5-3.5" }]],
+  plus: [["path", { d: "M12 5v14M5 12h14" }]],
+  chevron: [["path", { d: "m6 9 6 6 6-6" }]],
+  sun: [["circle", { cx: 12, cy: 12, r: 4 }], ["path", { d: "M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" }]],
+  moon: [["path", { d: "M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" }]],
+  check: [["path", { d: "m5 12.5 4.5 4.5L19 7.5" }]],
+};
+export function line(name, size = 18, cls = "") {
+  return s("svg", { class: `ic${cls ? ` ${cls}` : ""}`, width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+    "stroke-width": "1.6", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" },
+  (LINES[name] || []).map(([tag, a]) => s(tag, a)));
+}
+export const hasLine = (name) => !!LINES[name];
+// Phosphor names drawn with the design's line icons instead
+const SAME = {
+  "squares-four": "overview", plugs: "sources", plug: "sources", database: "destinations", "flow-arrow": "jobs",
+  "clock-counter-clockwise": "runs", stack: "stage", rows: "layouts", "gear-six": "settings",
+  "magnifying-glass": "search", plus: "plus", "caret-down": "chevron", sun: "sun", moon: "moon",
+};
 export const enc = encodeURIComponent;
 export const clone = (o) => JSON.parse(JSON.stringify(o ?? null));
 
@@ -177,6 +214,7 @@ export function between(a, b) {
 }
 
 // ------------------------------------------------------------------ page pieces
+// the page header: the title, one short line under it, the page's actions on the right
 export function head(title, sub, ...actions) {
   return h("div", { class: "head" },
     h("div", { class: "t" }, h("h1", {}, title), sub ? h("p", { class: "muted" }, sub) : null),
@@ -198,6 +236,35 @@ export function inlineError(err) {
   return h("div", { class: "banner bad", role: "alert" }, icon("warning-octagon"), h("div", { class: "grow small" }, err.message || String(err)));
 }
 
+// The empty state for a list page: a bordered card, the icon tile, "No X yet", one sentence and
+// the primary action. o.art is a line icon name (LINES) or else a Phosphor name.
+export function emptyState(o) {
+  const art = hasLine(o.art) ? line(o.art, 24) : icon(o.art || "circle-dashed");
+  return h("section", { class: "void" }, h("div", { class: "tile" }, art),
+    h("div", { class: "vb" }, h("h2", {}, o.title), o.text ? h("p", {}, o.text) : null,
+      (o.actions || []).filter(Boolean).length ? h("div", { class: "row" }, ...o.actions) : null));
+}
+
+// "Getting set up": add a source, add a destination, create a job. A step is done when the project
+// already has one; the first one not done is the current step. Gone once all three exist.
+const STEPS = [
+  { id: "connection", label: "Add a source", line: "Where the data comes from", href: "#/sources/add" },
+  { id: "destination", label: "Add a destination", line: "Where the data goes", href: "#/destinations/new" },
+  { id: "job", label: "Create a job", line: "Moves data from one to the other", href: "#/jobs/new" },
+];
+export function setupSteps(setup) {
+  const done = Object.fromEntries(((setup && setup.steps) || []).map((x) => [x.id, !!x.done]));
+  if (STEPS.every((x) => done[x.id])) return null;
+  const now = (STEPS.find((x) => !done[x.id]) || {}).id;
+  return h("ol", { class: "steps", "aria-label": "Getting set up" }, STEPS.map((x, i) => {
+    const cls = done[x.id] ? "done" : x.id === now ? "now" : "";
+    // ?setup=1: the job builder prefills the source and destination made in steps 1 and 2
+    return h("li", { class: `step ${cls}`.trim() }, h("a", { href: `${x.href}?setup=1`, "aria-current": x.id === now ? "step" : null },
+      h("span", { class: "n" }, done[x.id] ? line("check", 14) : String(i + 1)),
+      h("span", { class: "sx" }, h("span", { class: "sl" }, x.label, done[x.id] ? h("span", { class: "sr" }, " (done)") : null), h("span", { class: "cs" }, x.line))));
+  }));
+}
+
 export function empty(ico, text, ...actions) {
   return h("div", { class: "empty" }, icon(ico), h("p", {}, text), actions.filter(Boolean).length ? h("div", { class: "row" }, ...actions) : null);
 }
@@ -209,7 +276,7 @@ export function panel(title, right, ...body) {
 // a metric card: the label with its icon, the figure, an optional short line; href makes it a link
 export function stat(v, k, o = {}) {
   return h(o.href ? "a" : "div", { class: "stat", href: o.href || null },
-    h("div", { class: "k" }, o.icon ? icon(o.icon) : null, k),
+    h("div", { class: "k" }, o.art ? line(o.art, 14) : o.icon ? icon(o.icon) : null, k),
     h("div", { class: `v${o.tone ? ` ${o.tone}` : ""}` }, v),
     o.sub ? h("div", { class: "s" }, o.sub) : null);
 }

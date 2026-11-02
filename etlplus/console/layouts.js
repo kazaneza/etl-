@@ -1,7 +1,7 @@
 // Layouts for fixed-width multi-record files: the list, the editor with record sections,
 // the field table, a ruler preview, a test on a real file and the YAML (JSON form) view.
 import {
-  h, put, icon, api, enc, head, panel, empty, toast, pager, pageState, sect, dialog, confirmBox, inlineError, lab, clone, dataGrid, pagedGrid,
+  h, put, icon, api, enc, head, panel, empty, emptyState, toast, pager, pageState, sect, dialog, confirmBox, inlineError, lab, clone, dataGrid, pagedGrid,
 } from "./ui.js";
 import { loadConnections, isFileKind, loadKinds } from "./state.js";
 import { checksRow } from "./pages-sources.js";
@@ -12,7 +12,12 @@ const NAME_RE = /^[a-z0-9_]{1,60}$/;
 export async function pageLayouts(args) {
   if (args[0]) return pageLayout(args[0]);
   let list;
-  try { list = await api("/layouts"); } catch (e) { return [head("Layouts"), inlineError(e)]; }
+  const sub = "Fixed-width files with several record types.";
+  try { list = await api("/layouts"); } catch (e) { return [head("Layouts", sub), inlineError(e)]; }
+  if (!list.length) {
+    return [head("Layouts", sub), emptyState({ art: "layouts", title: "No layouts yet",
+      text: "A layout describes a fixed-width file: its record types and where each field starts and ends." })];
+  }
   const st = pageState("layouts", 25);
   const box = h("div");
   function draw() {
@@ -27,7 +32,7 @@ export async function pageLayouts(args) {
     list.length > 10 ? h("div", { class: "pf" }, pager(st, list.length, draw)) : null);
   }
   draw();
-  return [head("Layouts", "Fixed-width files with several record types."), panel("All layouts", null, box)];
+  return [head("Layouts", sub), panel("All layouts", null, box)];
 }
 
 // ------------------------------------------------------------------ pure helpers (tested)
@@ -95,7 +100,7 @@ function ruler(layout, rec, line) {
 // ------------------------------------------------------------------ editor
 async function pageLayout(name) {
   let layout;
-  try { layout = await api(`/layouts/${enc(name)}`); } catch (e) { return [head(name), inlineError(e)]; }
+  try { layout = await api(`/layouts/${enc(name)}`); } catch (e) { return [head(name, "Fixed-width layout"), inlineError(e)]; }
   const listRow = (await api("/layouts").catch(() => [])).find((l) => l.name === name) || {};
   const readOnly = !!(layout.template || listRow.template || listRow.source === "builtin");
   const L = clone(layout);
@@ -204,7 +209,7 @@ async function pageLayout(name) {
   const jsonErr = h("div", { class: "err" });
   drawRecords();
   return [
-    head(L.label || name, null,
+    head(L.label || name, L.label && L.label !== name ? name : "Fixed-width layout",
       h("a", { class: "btn ghost", href: "#/layouts" }, icon("arrow-left"), "Layouts"),
       readOnly ? h("button", { class: "btn primary", onclick: copy }, icon("copy"), "Copy template to edit") : h("button", { class: "btn primary", onclick: save }, icon("floppy-disk"), "Save")),
     L.verify || readOnly ? h("div", { class: "banner", title: L.verify || "" }, icon("warning"),

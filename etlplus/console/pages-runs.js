@@ -1,7 +1,7 @@
 // Runs (paginated, filtered by job), one run with its steps and live log, and Stage:
 // the files each run leaves behind plus the file ledger.
 import {
-  h, put, icon, api, apiPage, enc, fmt, head, panel, empty, toast, pager, pageState, sect, statusBadge, inlineError,
+  h, put, icon, line, api, apiPage, enc, fmt, head, panel, empty, emptyState, toast, pager, pageState, sect, statusBadge, inlineError,
   every, kv, rowsOf, stepMs, runMs, store,
 } from "./ui.js";
 import { refreshSide, startRun } from "./state.js";
@@ -16,10 +16,20 @@ export async function pageRuns(args) {
   refreshSide();
   let job = store.get("runs-job", "");
   const st = pageState("runs", 25);
-  const box = h("div");
+  const box = h("div", {}, h("div", { class: "pb" }, h("div", { class: "sk", style: "height:160px" })));
+  const wrap = h("div", { class: "stack" });
+  const listPanel = panel("History", null, box);
   async function draw() {
     let page;
     try { page = await apiPage(`/runs${job ? `?job=${enc(job)}` : ""}`, st); } catch (e) { put(box, h("div", { class: "pb" }, inlineError(e))); return; }
+    // no run at all: the empty state in place of the list
+    if (!page.total && !job) {
+      put(wrap, emptyState({ art: "runs", title: "No runs yet",
+        text: "A run appears here each time a job is started, by hand or on its schedule.",
+        actions: [h("a", { class: "btn primary", href: "#/jobs" }, line("jobs", 16), "Open jobs")] }));
+      return;
+    }
+    if (!listPanel.isConnected) put(wrap, listPanel);
     put(box, page.total ? h("div", { class: "scroll-x" }, h("table", { class: "t" },
       h("thead", {}, h("tr", {}, h("th", {}, "Job"), h("th", {}, "Status"), h("th", { class: "hide-sm" }, "Started"), h("th", { class: "r hide-sm" }, "Took"), h("th", { class: "r hide-sm" }, "Read"), h("th", { class: "r" }, "Loaded"), h("th", { class: "hide-sm" }, "How"))),
       h("tbody", {}, page.items.map((r) => h("tr", { class: "click", onclick: () => (location.hash = `#/runs/${enc(r.run_id)}`) },
@@ -30,15 +40,16 @@ export async function pageRuns(args) {
         h("td", { class: "r num hide-sm" }, fmt.int(rowsOf(r, "extract"))),
         h("td", { class: "r num" }, fmt.int(rowsOf(r, "load"))),
         h("td", { class: "small muted hide-sm" }, r.trigger || "-"))))))
-      : empty("clock-counter-clockwise", "No runs yet.", h("a", { class: "btn", href: "#/jobs" }, icon("flow-arrow"), "Jobs")),
+      : empty("clock-counter-clockwise", "This job has not run yet."),
     page.total > 10 ? h("div", { class: "pf" }, pager(st, page.total, draw)) : null);
     if (page.items.some((r) => r.status === "running") && !st.polling) { st.polling = true; every(3000, () => { if (box.isConnected) draw(); }); }
   }
+  put(wrap, listPanel);
   draw();
   return [
-    head("Runs", null, h("select", { class: "input", "aria-label": "Job", style: "width:220px", onchange: (e) => { job = e.target.value; store.set("runs-job", job); st.offset = 0; draw(); } },
+    head("Runs", "Every run of every job, newest first.", h("select", { class: "input", "aria-label": "Job", style: "width:220px", onchange: (e) => { job = e.target.value; store.set("runs-job", job); st.offset = 0; draw(); } },
       h("option", { value: "" }, "All jobs"), (Array.isArray(jobs) ? jobs : []).map((j) => h("option", { value: j.name, selected: j.name === job }, j.name)))),
-    panel("History", null, box),
+    wrap,
   ];
 }
 
@@ -91,7 +102,7 @@ async function pageRun(runId) {
   }
   draw();
   return [
-    head(run.job, null, status, actions),
+    head(run.job, run.run_id, status, actions),
     stepsBox,
     info,
     sect("run-log", "Log", { icon: "file-text", right: h("span", { class: "faint small" }, run.status === "running" ? "Live, every 2 s" : "Last 200 lines") }, logBox),
@@ -105,7 +116,12 @@ export async function pageStage(args) {
   const name = args[0] || (jobs[0] && jobs[0].name);
   const picker = h("select", { class: "input", "aria-label": "Job", style: "width:220px", onchange: (e) => (location.hash = `#/stage/${enc(e.target.value)}`) },
     jobs.map((j) => h("option", { value: j.name, selected: j.name === name }, j.name)));
-  if (!name) return [head("Stage"), panel("Staged files", null, empty("stack", "No jobs yet."))];
+  const sub = "Files each run extracts, kept so a load can run again.";
+  if (!name) {
+    return [head("Stage", sub), emptyState({ art: "stage", title: "Nothing staged yet",
+      text: "Each run keeps the files it extracted here, so a load can be repeated without reading the source again.",
+      actions: [h("a", { class: "btn primary", href: "#/jobs/new" }, line("plus", 16), "New job")] })];
+  }
   const staged = await api(`/stage/${enc(name)}`);
   const total = staged.reduce((a, x) => a + (x.bytes || 0), 0);
   const kindOf = (m) => ({ transform: "transformed", map: "mapped" }[m.kind] || m.kind || "extract");
@@ -135,7 +151,9 @@ export async function pageStage(args) {
         h("td", { class: "small" }, f.complete ? "" : h("span", { class: "badge warn" }, "Being written")),
         h("td", { class: "r num small" }, fmt.bytes(f.bytes))))))),
       sect("stage-manifest", "Manifest", { flat: true }, h("pre", { class: "code", style: "max-height:300px" }, JSON.stringify(m, null, 2))));
-    }) : panel("Staged files", null, empty("stack", "Nothing staged yet.", h("button", { class: "btn", onclick: () => startRun(name, ["extract"]) }, icon("play"), "Extract now"))),
+    }) : emptyState({ art: "stage", title: "Nothing staged yet",
+      text: "Extract this job once and its files are kept here, ready to transform and load.",
+      actions: [h("button", { class: "btn primary", onclick: () => startRun(name, ["extract"]) }, icon("play"), "Extract now")] }),
     staged.length > 10 ? pager(st, staged.length, drawList) : null);
   }
   drawList();
@@ -157,7 +175,7 @@ export async function pageStage(args) {
   }
 
   return [
-    head("Stage", null, picker),
+    head("Stage", sub, picker),
     h("div", { class: "row" },
       h("span", { class: "muted small grow" }, `${staged.length} staged ${staged.length === 1 ? "run" : "runs"}, ${fmt.bytes(total)}`),
       h("button", { class: "btn", disabled: !staged.length, onclick: () => startRun(name, ["transform", "map", "load"]) }, icon("tree-structure"), "Transform and load"),

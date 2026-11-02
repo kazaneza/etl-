@@ -1,5 +1,5 @@
-// The first-start chooser (demo or real) and the Overview page with the setup card.
-import { h, put, icon, api, enc, fmt, head, panel, stat, pill, empty, statusBadge, statusCell, pager, pageState, sect, store, every, toast, rowsOf } from "./ui.js";
+// The first-start chooser (demo or real) and the Overview page with the Getting set up steps.
+import { h, put, icon, line, api, enc, fmt, head, panel, stat, pill, emptyState, setupSteps, statusCell, pager, pageState, sect, every, toast, rowsOf } from "./ui.js";
 import { app, refreshSide, startRun, loadStart, drawProjectBadge } from "./state.js";
 
 // ------------------------------------------------------------------ chooser (section 13.3)
@@ -14,13 +14,13 @@ export async function pageChooser(onReady) {
 
   function choices() {
     const demoBtn = h("button", { class: "btn primary", onclick: () => choose("demo") }, icon("flask"), "Start with demo data");
-    const realBtn = h("button", { class: "btn", onclick: () => choose("real") }, icon("plugs"), "Connect my own data");
+    const realBtn = h("button", { class: "btn", onclick: () => choose("real") }, line("sources", 16), "Connect my own data");
     put(inner, brand,
       h("div", { class: "stack tight" }, h("h1", {}, "How do you want to start?"), h("p", { class: "muted" }, "You can switch later in Settings. Both are kept.")),
       h("div", { class: "choices" },
         h("div", { class: "choice demo" }, h("div", { class: "ico" }, icon("flask")), h("h2", {}, "Start with demo data"),
           h("p", {}, "Made-up bank files, a database and ready jobs."), demoBtn),
-        h("div", { class: "choice real" }, h("div", { class: "ico" }, icon("plugs")), h("h2", {}, "Connect my own data"),
+        h("div", { class: "choice real" }, h("div", { class: "ico" }, line("sources", 20)), h("h2", {}, "Connect my own data"),
           h("p", {}, "Start empty. Add a connection, a destination, a job."), realBtn)),
       msg);
     setTimeout(() => { if (demoBtn.isConnected) demoBtn.focus(); }, 30);
@@ -86,44 +86,29 @@ export async function pageChooser(onReady) {
 }
 
 // ------------------------------------------------------------------ overview
-const SETUP = [
-  { id: "connection", label: "First connection", help: "Pick a source from the gallery.", href: "#/sources/add" },
-  { id: "destination", label: "First destination", help: "A table or folder to load into.", href: "#/destinations/new" },
-  { id: "job", label: "First job", help: "Source to destination, with a mapping.", href: "#/jobs/new" },
-];
-
-function setupCard(o) {
-  const kind = o.project && typeof o.project === "object" ? o.project.kind : app.start && app.start.active;
-  const setup = o.setup;
-  if (kind !== "real" || !setup || setup.done) return null;
-  if (store.get("setup-skipped", false)) return null;
-  const done = Object.fromEntries((setup.steps || []).map((x) => [x.id, !!x.done]));
-  const nextId = (SETUP.find((x) => !done[x.id]) || {}).id;
-  return h("div", { class: "panel" },
-    h("div", { class: "pnh" }, h("div", { class: "row" }, icon("rocket-launch"), h("h2", {}, "Set up your project")),
-      h("button", { class: "btn ghost sm", onclick: (e) => { store.set("setup-skipped", true); e.target.closest(".panel").remove(); } }, "Skip")),
-    h("div", { class: "setup" }, SETUP.map((x, i) => {
-      // the job builder prefills the connection and destination made in steps 1 and 2
-      const href = `${x.href}?setup=1`;
-      return h("a", { href, class: done[x.id] ? "done" : x.id === nextId ? "next" : "" },
-        h("span", { class: "n" }, done[x.id] ? icon("check") : String(i + 1)),
-        h("span", { class: "stack tight", style: "gap:2px" }, h("strong", {}, x.label), h("span", { class: "small muted" }, done[x.id] ? "Done" : x.help)));
-    })));
-}
-
 export async function pageOverview() {
   const o = await refreshSide();
   if (!o) throw new Error("The server did not answer.");
   drawProjectBadge();
   if (o.counts.running) every(3000, () => { if (location.hash.startsWith("#/overview") || location.hash === "" || location.hash === "#/") window.dispatchEvent(new CustomEvent("etl:reroute", { detail: { keep: true } })); });
-  const newJob = h("a", { class: "btn primary", href: "#/jobs/new" }, icon("plus"), "New job");
+  const newJob = h("a", { class: "btn primary", href: "#/jobs/new" }, line("plus", 16), "New job");
+  const top = head("Overview", "What ran, what failed and what runs next.", newJob);
+  const c = o.counts || {};
+  // nothing yet: the empty state and the three steps, nothing else
+  if (!c.connections && !c.destinations && !c.jobs) {
+    return [head("Overview", "What ran, what failed and what runs next."),
+      h("div", {}, emptyState({ art: "overview", title: "Nothing here yet",
+        text: "Add a source, then a destination, then a job that moves data from one to the other.",
+        actions: [h("a", { class: "btn primary", href: "#/sources/add?setup=1" }, line("plus", 16), "Add source")] }),
+      setupSteps(o.setup))];
+  }
 
   const jobsBox = h("div");
   const st = pageState("overview-jobs", 10);
   const jobs = o.jobs || [];
   function drawJobs() {
     if (!jobs.length) {
-      put(jobsBox, empty("flow-arrow", "No jobs yet.", h("a", { class: "btn", href: "#/sources/add" }, icon("plugs"), "Add a source"), newJob.cloneNode(true)));
+      put(jobsBox, h("p", { class: "faint", style: "padding:14px 16px" }, "No jobs yet. Create one to move data from a source to a destination."));
       return;
     }
     const shown = jobs.slice(st.offset, st.offset + st.limit);
@@ -146,13 +131,13 @@ export async function pageOverview() {
 
   const alerts = o.alerts || [];
   return [
-    head("Overview", null, newJob),
-    setupCard(o),
+    top,
+    setupSteps(o.setup),
     h("div", { class: "stats" },
-      stat(fmt.int(o.counts.jobs), "Jobs", { icon: "flow-arrow", href: "#/jobs", sub: o.counts.scheduled ? `${fmt.int(o.counts.scheduled)} on a schedule` : "Started by hand" }),
-      stat(fmt.int(o.counts.connections), "Sources", { icon: "plugs", href: "#/sources", sub: `${fmt.int(o.counts.destinations)} destinations` }),
+      stat(fmt.int(o.counts.jobs), "Jobs", { art: "jobs", href: "#/jobs", sub: o.counts.scheduled ? `${fmt.int(o.counts.scheduled)} on a schedule` : "Started by hand" }),
+      stat(fmt.int(o.counts.connections), "Sources", { art: "sources", href: "#/sources", sub: `${fmt.int(o.counts.destinations)} destinations` }),
       stat(fmt.int(o.counts.failed), "Failed last run", { icon: "warning-octagon", href: "#/runs", tone: o.counts.failed ? "bad" : "ok", sub: o.counts.running ? `${fmt.int(o.counts.running)} running now` : "None running" }),
-      stat(fmt.bytes(o.staged_bytes), "Staged", { icon: "stack", href: "#/stage", sub: "Kept for reruns" })),
+      stat(fmt.bytes(o.staged_bytes), "Staged", { art: "stage", href: "#/stage", sub: "Kept for reruns" })),
     (o.running || []).length ? panel("Running now", null, h("div", { class: "pb stack tight" }, o.running.map((r) =>
       h("a", { class: "row", href: `#/runs/${enc(r.run_id)}` }, h("span", { class: "spin", "aria-hidden": "true" }), h("span", { class: "mono" }, r.job),
         h("span", { class: "faint small" }, `started ${fmt.ago(r.started_at)}`), h("span", { class: "grow" }), icon("arrow-right"))))) : null,

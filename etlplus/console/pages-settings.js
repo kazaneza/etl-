@@ -1,6 +1,6 @@
 // Settings: the Project panel (demo or my data, reset demo), notifications, drivers, access.
 import { h, put, icon, api, head, panel, toast, pager, pageState, sect, confirmBox, clone, cleanObj, lab, inp, seg, kindStatus, copyBtn } from "./ui.js";
-import { app, loadStart, loadKinds, refreshSide, drawProjectBadge } from "./state.js";
+import { app, loadStart, loadKinds, refreshSide, switchProject } from "./state.js";
 
 export async function pageSettings() {
   const [d, start, kinds] = await Promise.all([api("/settings"), loadStart(), loadKinds()]);
@@ -45,10 +45,7 @@ export async function pageSettings() {
     const ok = await confirmBox(`Switch to ${label}?`, "The other project is kept as it is.", "Switch");
     if (!ok) { drawProject(); return; }
     try {
-      app.start = await api("/start", { method: "POST", body: { choice: id, run_jobs: true } });
-      app.connections = null;
-      drawProjectBadge();
-      toast(`Now on ${label}`);
+      await switchProject(id);
       location.hash = "#/overview";
     } catch (e) { toast(e.message, true); drawProject(); }
   }
@@ -100,7 +97,7 @@ export async function pageSettings() {
   drawDrivers();
 
   return [
-    head("Settings", null, h("button", { class: "btn primary", onclick: save }, icon("floppy-disk"), "Save")),
+    head("Settings", "Project, notifications, drivers and access.", h("button", { class: "btn primary", onclick: save }, icon("floppy-disk"), "Save")),
     err,
     panel(h("div", { class: "row" }, icon("folder-simple"), h("h2", {}, "Project")), null, projectBox),
     sect("settings-notify", "Notifications", { icon: "bell" },
